@@ -14,6 +14,11 @@
             'title' => 'all_news',
             'active' => isset($globalFeed)
         ],
+	[
+	    'url' => '/feed/rss',
+	    'title' => 'rss',
+	    'active' => isset($rss) && $rss === true
+	],
         [
             'id' => '__feed_settings_link',
             'url' => '#',

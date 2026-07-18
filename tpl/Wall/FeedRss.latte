@@ -1,0 +1,258 @@
+{extends "../@layout.latte"}
+{block title}{_rss}{/block}
+
+{block content}
+
+    {var $menuItems = [
+        [
+            'url' => '/feed',
+            'title' => 'my_news',
+            'active' => $globalFeed !== true && $rss !== true
+        ],
+        [
+            'url' => '/feed/all',
+            'title' => 'all_news',
+            'active' => $globalFeed === true
+        ],
+        [
+            'url' => '/feed/rss',
+            'title' => 'rss',
+            'active' => $rss === true
+        ]
+    ]}
+
+    <div class="wide_column_left">
+        <div class="narrow_column_wrap">
+            <div class="narrow_column">
+                {include "../components/ui_rmenu.latte", items => $menuItems}
+            </div>
+        </div>
+
+        <div class="wide_column_wrap">
+            <div class="wide_column">
+
+                <div class="page_block">
+                    <div class="module_header">
+                        <div class="header_top">RSS</div>
+                    </div>
+                    <div class="module_body">
+                        <div class="rss_help">
+                            Добавьте несколько адресов — по одному в строке. Записи со всех лент показываются на этой странице.
+                        </div>
+
+                        <form method="post" action="/feed/rss/add" class="rss_add_form">
+                            <input type="hidden" name="hash" value="{$csrfToken}" />
+                            <textarea name="urls" rows="5" placeholder="https://example.com/news.xml&#10;https://другой-сайт/feed"></textarea>
+                            <div class="rss_form_actions">
+                                <button type="submit" class="button">Добавить ленты</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div n:if="$subscriptions && $subscriptions->count() > 0" class="page_block rss_subscriptions">
+                    <div class="module_header">
+                        <div class="header_top">Мои RSS-ленты</div>
+                    </div>
+                    <div class="module_body">
+                        <div n:foreach="$subscriptions as $sub" class="rss_subscription">
+                            <div class="rss_subscription_info">
+                                <div class="rss_subscription_title">{$sub->title}</div>
+                                <div class="rss_subscription_url">{$sub->url}</div>
+                            </div>
+                            <form method="post" action="/feed/rss/remove" class="rss_subscription_remove">
+                                <input type="hidden" name="hash" value="{$csrfToken}" />
+                                <input type="hidden" name="id" value="{$sub->id}" />
+                                <button type="submit" class="button">Удалить</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page_block rss_preview">
+                    <div class="module_header">
+                        <div class="header_top">Предпросмотр по ссылке</div>
+                    </div>
+                    <div class="module_body">
+                        <form method="get" action="/feed/rss" class="rss_preview_form">
+                            <input type="text" name="url" value="{$url}" placeholder="Одна RSS-ссылка для просмотра…" />
+                            <button type="submit" class="button">Загрузить</button>
+                            <a href="/feed/rss" class="button">Все сохранённые ленты</a>
+                        </form>
+
+                        {if $error}
+                            <div class="rss_error">{$error}</div>
+                        {/if}
+                    </div>
+                </div>
+
+                {if $url && $feedTitle}
+                    <div class="page_block rss_feed_title">
+                        <div class="module_header">
+                            <div class="header_top">{$feedTitle}</div>
+                        </div>
+                    </div>
+                {elseif !$url && isset($mergedMode) && $mergedMode}
+                    <div class="page_block rss_feed_title">
+                        <div class="module_header">
+                            <div class="header_top">Все ленты</div>
+                        </div>
+                    </div>
+                {/if}
+
+                {if isset($mergedMode) && $mergedMode && (!$subscriptions || $subscriptions->count() === 0) && !$error}
+                    {include "../components/content_error.latte", description => "Добавьте хотя бы одну RSS-ленту выше или используйте предпросмотр."}
+                {/if}
+
+                <div class="scroll_container rss_items">
+                    {foreach $items as $item}
+                        <div class="page_block rss_item">
+                            <div class="rss_item_source" n:if="isset($item->sourceFeed)">{$item->sourceFeed}</div>
+                            <a href="{$item->link}" target="_blank" rel="noopener noreferrer" class="rss_item_title">{$item->title}</a>
+                            <div class="rss_item_date">{$item->date}</div>
+                            <div class="rss_item_desc">{$item->desc|noescape}</div>
+                        </div>
+                    {/foreach}
+
+                    {if $url && count($items) === 0 && !$error}
+                        {include "../components/content_error.latte", description => "Нет записей."}
+                    {/if}
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .rss_help {
+            color: var(--muted-text-color-2);
+            font-size: 12.5px;
+            line-height: 1.45;
+            margin-bottom: 12px;
+        }
+
+        .rss_add_form textarea {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 92px;
+            resize: vertical;
+        }
+
+        .rss_form_actions {
+            margin-top: 10px;
+        }
+
+        .rss_subscriptions .module_body {
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .rss_subscription {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .rss_subscription:first-child {
+            border-top: 0;
+        }
+
+        .rss_subscription_info {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .rss_subscription_title {
+            font-weight: 700;
+            color: var(--text-color);
+            word-break: break-word;
+            margin-bottom: 3px;
+        }
+
+        .rss_subscription_url {
+            font-size: 11.5px;
+            color: var(--muted-text-color);
+            word-break: break-all;
+        }
+
+        .rss_subscription_remove {
+            margin: 0;
+            flex: 0 0 auto;
+        }
+
+        .rss_preview_form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .rss_preview_form input[type="text"] {
+            flex: 1;
+            min-width: 240px;
+            box-sizing: border-box;
+        }
+
+        .rss_preview_form a.button {
+            text-decoration: none;
+            display: inline-block;
+            line-height: normal;
+        }
+
+        .rss_error {
+            color: #e64646;
+            background: #ffefe9;
+            border: 1px solid #f2ab99;
+            padding: 10px;
+            margin-top: 12px;
+            border-radius: var(--module-border-radius);
+        }
+
+        .rss_feed_title {
+            margin-bottom: 10px;
+        }
+
+        .rss_items .rss_item {
+            padding: 14px 20px;
+            margin-bottom: 10px;
+        }
+
+        .rss_item_source {
+            font-size: 11.5px;
+            color: var(--success-color);
+            margin-bottom: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .rss_item_title {
+            display: block;
+            font-weight: 700;
+            font-size: 13px;
+            line-height: 1.35;
+            margin-bottom: 4px;
+        }
+
+        .rss_item_date {
+            font-size: 11.5px;
+            color: var(--muted-text-color);
+            margin-bottom: 7px;
+        }
+
+        .rss_item_desc {
+            color: var(--muted-text-color-2);
+            font-size: 13px;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .rss_item_desc img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+{/block}

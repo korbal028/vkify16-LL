@@ -4497,3 +4497,28 @@ hr {
 #small_remove_button:hover {
     opacity: 1;
 }
+
+/* Fix playlist covers size */
+.playlistContainer {
+    display: grid !important;
+    grid-template-columns: repeat(3, 160px) !important;
+    gap: 15px !important;
+    align-items: start !important;
+}
+
+.audio_pl_item {
+    width: 160px !important;
+    max-width: 160px !important;
+}
+
+.audio_pl_item .audio_pl__cover {
+    width: 160px !important;
+    height: 160px !important;
+    aspect-ratio: auto !important;
+}
+
+.audio_pl_item .audio_pl__cover img {
+    width: 160px !important;
+    height: 160px !important;
+    object-fit: cover !important;
+}
