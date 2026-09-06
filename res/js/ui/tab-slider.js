@@ -1,6 +1,93 @@
 (function () {
 'use strict';
 
+function findHorizontalScroller(element) {
+    let el = element;
+    while (el && el !== document.body && el !== document.documentElement) {
+        const style = window.getComputedStyle(el);
+        if (style.overflowX === 'auto' || style.overflowX === 'scroll') {
+            return el;
+        }
+        el = el.parentElement;
+    }
+    return null;
+}
+
+function scrollActiveTabIntoView(container, tabAnchor, animate = true) {
+    const scroller = findHorizontalScroller(container);
+    if (!scroller || !tabAnchor) return;
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const tabRect = tabAnchor.getBoundingClientRect();
+    const scrollerStyle = window.getComputedStyle(scroller);
+    const borderLeft = parseFloat(scrollerStyle.borderLeftWidth) || 0;
+    const paddingLeft = parseFloat(scrollerStyle.paddingLeft) || 0;
+
+    const contentLeft = scrollerRect.left + borderLeft + paddingLeft;
+    const tabLeft = tabRect.left - contentLeft;
+    const tabRight = tabLeft + tabRect.width;
+    const visibleLeft = scroller.scrollLeft;
+    const visibleRight = visibleLeft + scroller.clientWidth;
+
+    let targetScroll = scroller.scrollLeft;
+    if (tabRight > visibleRight) {
+        targetScroll = tabRight - scroller.clientWidth;
+    } else if (tabLeft < visibleLeft) {
+        targetScroll = tabLeft;
+    } else {
+        return;
+    }
+
+    const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+    scroller.scrollTo({
+        left: Math.max(0, Math.min(targetScroll, maxScroll)),
+        behavior: animate ? 'smooth' : 'auto'
+    });
+}
+
+function moveTabSlider(container, tabAnchor, animate = true) {
+    const slider = container?.querySelector('.ui_tabs_slider');
+    if (!slider || !tabAnchor) return;
+
+    const { offsetLeft, offsetWidth } = tabAnchor;
+
+    if (animate) {
+        container.classList.add('ui_tabs_sliding');
+        slider.style.transform = `translateX(${offsetLeft}px)`;
+        slider.style.width = `${offsetWidth}px`;
+    } else {
+        container.classList.remove('ui_tabs_sliding');
+        slider.style.transform = `translateX(${offsetLeft}px)`;
+        slider.style.width = `${offsetWidth}px`;
+    }
+
+    scrollActiveTabIntoView(container, tabAnchor, animate);
+}
+
+window.__vkifyMoveTabSlider = moveTabSlider;
+
+function repositionInitializedTabSliders() {
+    document.querySelectorAll('.ui_tabs[data-vkify-tab-slider-init="1"]').forEach(container => {
+        const activeTab = container.querySelector('.ui_tab_sel');
+        if (activeTab) {
+            moveTabSlider(container, activeTab, false);
+        }
+    });
+}
+
+if (!window.__vkifyTabSliderResizeBound) {
+    window.__vkifyTabSliderResizeBound = true;
+    let resizeRafPending = false;
+    window.addEventListener('resize', () => {
+        if (resizeRafPending) return;
+        resizeRafPending = true;
+        requestAnimationFrame(() => {
+            resizeRafPending = false;
+            repositionInitializedTabSliders();
+        });
+    });
+}
+
 window.__vkifyInitTabSliderSafe = window.__vkifyInitTabSliderSafe || function () {
     const tabContainers = document.querySelectorAll('.ui_tabs');
 
@@ -25,30 +112,10 @@ window.__vkifyInitTabSliderSafe = window.__vkifyInitTabSliderSafe || function ()
 
         const state = container._tabSliderState;
 
-        function moveSliderTo(tabAnchor, animate = true) {
-            if (!tabAnchor || !slider) return;
-
-            tabAnchor.offsetHeight;
-
-            const { offsetLeft, offsetWidth } = tabAnchor;
-
-            if (animate) {
-                if (!container.classList.contains('ui_tabs_sliding')) {
-                    container.classList.add('ui_tabs_sliding');
-                }
-                slider.style.transform = `translateX(${offsetLeft}px)`;
-                slider.style.width = `${offsetWidth}px`;
-            } else {
-                container.classList.remove('ui_tabs_sliding');
-                slider.style.transform = `translateX(${offsetLeft}px)`;
-                slider.style.width = `${offsetWidth}px`;
-            }
-        }
-
         function initSliderPosition() {
             const activeTab = container.querySelector('.ui_tab_sel');
             if (activeTab) {
-                moveSliderTo(activeTab, false);
+                moveTabSlider(container, activeTab, false);
             }
         }
 
@@ -67,9 +134,14 @@ window.__vkifyInitTabSliderSafe = window.__vkifyInitTabSliderSafe || function ()
             targetTab.classList.add('ui_tab_sel');
 
             const href = targetTab.getAttribute('href');
-            if (href) {
-                const fullUrl = new URL(href, window.location.href).href;
+            let handled = false;
 
+            if (typeof window.__vkifyOnWallTabSwitch === 'function') {
+                handled = window.__vkifyOnWallTabSwitch(targetTab) === true;
+            }
+
+            if (!handled && href && !href.startsWith('#')) {
+                const fullUrl = new URL(href, window.location.href).href;
                 vkify.navigate(fullUrl);
             }
 
@@ -89,14 +161,14 @@ window.__vkifyInitTabSliderSafe = window.__vkifyInitTabSliderSafe || function ()
 
             if (state.isAnimating) {
                 state.pendingTab = clickedTab;
-                moveSliderTo(clickedTab, true);
+                moveTabSlider(container, clickedTab, true);
                 return;
             }
 
             state.isAnimating = true;
             state.pendingTab = clickedTab;
 
-            moveSliderTo(clickedTab, true);
+            moveTabSlider(container, clickedTab, true);
 
             state.animationTimeout = setTimeout(() => {
                 finishTabSwitch(state.pendingTab);
@@ -116,10 +188,6 @@ window.__vkifyInitTabSliderSafe = window.__vkifyInitTabSliderSafe || function ()
                     }, 50);
                 }
             }
-        });
-
-        window.addEventListener('resize', () => {
-            initSliderPosition();
         });
 
         initSliderPosition();

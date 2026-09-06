@@ -6,13 +6,11 @@
 {/block}
 
 {block content}
-<div class="page_block wall_posts_tabs">
+<div class="page_block notifications">
     {include "../components/page_crumb_header.latte", crumbs => [
         ['href' => $thisUser->getURL(), 'title' => $thisUser->getCanonicalName()],
         ['title' => tr("feedback")]
     ]}
-</div>
-<div class="page_block notifications">
     {include "../components/page_tabs_header.latte", white => true, tabs => [
         [
             'url' => '/notifications?act=new',
@@ -27,14 +25,14 @@
     ]}
     {var $data = is_array($iterator) ? $iterator : iterator_to_array($iterator)}
     {if sizeof($data) > 0}
-        <div n:class="$mode !== 'new' ? scroll_container">
+        <div class="scroll_container">
             <div class="feedback_row scroll_node" n:foreach="$data as $dat">
                 {var $sxModel = $dat->getModel(1)}
                 {if !(method_exists($sxModel, "getURL") && method_exists($sxModel, "getAvatarUrl"))}
                     {var $sxModel = $dat->getModel(0)}
                 {/if}
                 <a href="{$sxModel->getURL()}" class="feedback_image" n:if="method_exists($sxModel, 'getURL') && method_exists($sxModel, 'getAvatarUrl')">
-                    <img src="{if str_contains($sxModel->getAvatarUrl('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$sxModel->getAvatarUrl('miniscule')}{/if}" width=50 />
+                    {include '../components/avatar.latte', author => $sxModel, size => 'miniscule', width => 50}
                 </a>
                 <div class="feedback_content">
                     {include $dat->getTemplatePath(), notification => $dat}

@@ -45,9 +45,6 @@
 	height: 1px;
 }
 
-.form_separator.no_padding {
-    margin: 0;
-}
 
 .settings_block_msg {
     padding: 13px 20px 15px;
@@ -69,13 +66,17 @@
     width: 300px;
 }
 
-.form_field label.checkbox {
-    display: flex;
-    width: fit-content;
+.form_field label.checkbox,
+.form_field label.radio {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 label.checkbox .nobold {
+    display: block;
     margin-top: 5px;
+    line-height: 1.4;
 }
 
 .form_field #filename:not(:empty) {
@@ -104,18 +105,8 @@ label.checkbox .nobold {
     border-bottom: none
 }
 
-.settings_privacy_row.setting_row_selected.setting_row_animated {
-    background-color: transparent;
-    border-color: transparent
-}
 
-.settings_privacy_row.settings_privacy_row_oneline .form_label {
-    padding: 11px 10px 0 0
-}
 
-[dir=rtl] .settings_privacy_row.settings_privacy_row_oneline .form_label {
-    padding: 11px 0 0 10px
-}
 
 .settings_privacy_row--no-bottom-border {
     border-bottom-width: 0
@@ -126,10 +117,6 @@ label.checkbox .nobold {
     text-align: left;
 }
 
-.settings_row_button_wrap {
-    padding-left: 155px;
-    margin: 15px 0 25px 0;
-}
 
 .settings_save_footer {
     text-align: center;
@@ -196,10 +183,40 @@ label.checkbox .nobold {
     width: 100%;
 }
 
-.settings_padding .forn_field + input[type="hidden"] {
-    margin-top: -10px;
-}
 
 .outline_table {
     border-color: var(--border-color)
+}
+
+.form_data.flash-error input:not([type="submit"], [type="checkbox"], [type="radio"], [type="button"], [type="file"]),
+.form_data.flash-error select,
+.form_data.flash-error textarea {
+    animation: formInputFlashError 1s ease-in-out 3;
+}
+
+@keyframes formInputFlashError {
+    0% {
+        background-color: transparent;
+        border-color: var(--border-color);
+    }
+    50% {
+        background-color: var(--message-warning-background);
+        border-color: var(--message-warning-border);
+    }
+    100% {
+        background-color: transparent;
+        border-color: var(--border-color);
+    }
+}
+.page_block .knowledgebase_block {
+    padding: 0!important;
+    margin: 0!important;
+    box-shadow: none;
+    background: none;
+}
+.page_block .knowledgebase_block .page_block_h2 {
+    display: none;
+}
+.page_block .knowledgebase_block .page_padding {
+    padding: 0!important;
 }

@@ -1,45 +1,48 @@
 {extends "../@layout.latte"}
+{var $transparentAppbar = true}
 {block title}{$user->getCanonicalName()}{/block}
 
+{block appbar_extra}
+{ifset $thisUser}
+<div class="mobileonly" id="profile_appbar_extra">
+    <button class="appbar-extra-btn" id="profileAppbarMoreBtn" aria-label="More actions">
+        <svg viewBox="0 0 12 24" width="22" height="22" fill="currentColor"><use href="#more-vertical-24"></use></svg>
+    </button>
+</div>
+{/ifset}
+{/block}
+
+{define mobileProfile}
+    {include '../components/mobile_profile_hero.latte', entity => $user, name => $user->getFullName(), status => tr('profile_deactivated_status'), verified => $user->isVerified(), disablePhotoViewer => true}
+    <div class="page_block mobile-actions-info-block mobileonly" n:ifcontent>
+        {include '../components/mobile_profile_actions.latte'}
+    </div>
+    <div class="page_block page_padding mobile-page-info mobileonly">
+        <div class="profile_deleted_text">
+            {_profile_deactivated_info|noescape}
+        </div>
+    </div>
+{/define}
+
 {block content}
-    <div class="wide_column_right">
+    {include #mobileProfile}
+
+    <div class="wide_column_right nomobile">
         <div class="narrow_column_wrap">
             <div class="narrow_column">
                 <div class="page_block photo_block">
                     <div class="avatar_block">
                         <div class="avatar_block_inner">
-                            {if str_contains($user->getAvatarUrl('miniscule'), 'camera_200.png')}
-                                <img src="/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png"
-                                    alt="{$user->getCanonicalName()}"
-                                    style="width: 100%; image-rendering: -webkit-optimize-contrast;" />
-                            {else}
-                                <img src="{$user->getAvatarUrl('normal')}"
-                                    alt="{$user->getCanonicalName()}"
-                                    style="width: 100%; image-rendering: -webkit-optimize-contrast;" />
-                            {/if}
+                            {include '../components/avatar.latte', author => $user, size => 'normal', id => 'bigAvatar', width => ($avatarNormal ? $avatarNormal->width : 200), height => ($avatarNormal ? $avatarNormal->height : 200), alt => $user->getCanonicalName(), style => 'width: 100%; image-rendering: -webkit-optimize-contrast', class => ''}
                         </div>
                     </div>
-                    <div class="profile_actions clear_fix" n:if="isset($thisUser)" n:ifcontent>
-                        {var $subStatus = $user->getSubscriptionStatus($thisUser)}
-                        {var $actions = [
-                            2 => ['act' => 'rem', 'label' => tr('friends_reject')],
-                            3 => ['act' => 'rem', 'label' => tr('friends_delete')]
-                        ]}
-                        {if isset($actions[$subStatus])}
-                            <form action="/setSub/user" method="post" class="profile_link_form fl_l" style="width: 100%">
-                                <input type="hidden" name="act" value="{$actions[$subStatus]['act']}" />
-                                <input type="hidden" name="id"  value="{$user->getId()}" />
-                                <input type="hidden" name="hash" value="{$csrfToken}" />
-                                <input type="submit" value="{$actions[$subStatus]['label']}" class="button button_wide button_gray" />
-                            </form>
-                        {/if}
-                    </div>
+					{include '../components/profile_actions.latte'}
                 </div>
             </div>
         </div>
         <div class="wide_column_wrap">
             <div class="wide_column">
-                <div class="page_block page_info_wrap">
+                <div class="page_block page_info_wrap info_block">
                     <div class="accountInfo clearFix">
                         <div class="page_top">
                             <h2 class="page_name">{$user->getFullName()}

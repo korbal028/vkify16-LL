@@ -2,6 +2,7 @@
 {var $darkModeEnabled = ($_COOKIE['vkify16_darkmode'] ?? '0') === '1'}
 {var $mode2018Enabled = ($_COOKIE['vkify16_2018mode'] ?? '0') === '1'}
 {var $ovkHatEnabled = ($_COOKIE['ovkhat'] ?? '0') === '1'}
+{var $hideSidebar = $_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/reg' || $_SERVER['REQUEST_URI'] === '/login' || (isset($thisUser) && $thisUser->isBanned())}
 {if !isset($parentModule) || substr($parentModule, 0, 21) === 'libchandler:absolute.'}
 <!DOCTYPE html>
 <html>
@@ -12,6 +13,7 @@
         <meta charset="utf-8" />
         <link rel="shortcut icon" href="/themepack/vkify16/{$theme->getVersion()}/resource/favicon_vk.ico" />
         <meta name="application-name" content="{$instance_name}" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <meta n:ifset="$csrfToken" name="csrf" value="{$csrfToken}" />
 
         <script src="/language/{php echo getLanguage()}.js" crossorigin="anonymous"></script>
@@ -56,7 +58,8 @@
             {include headIncludes}
         {/ifset}
     </head>
-    <body {if isset($thisUser)}data-themepack="{$thisUser->getStyle()}"{/if}{var $hideSidebar = $_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/reg' || $_SERVER['REQUEST_URI'] === '/login'} n:class="$hideSidebar ? no-sidebar, $darkModeEnabled ? dark-mode, $ovkHatEnabled ? ovkhat">
+    <body {if isset($thisUser)}data-themepack="{$thisUser->getStyle()}"{/if} n:class="$hideSidebar ? no-sidebar, isset($thisUser) && $thisUser->isBanned() ? banned, $darkModeEnabled ? dark-mode, $ovkHatEnabled ? ovkhat">
+        {include "_mobileIcons.latte"}
         <div n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['bellsAndWhistles']['testLabel']" id="test-label">FOR TESTING PURPOSES ONLY</div>
 
         <div class="notifications_global_wrap"></div>
@@ -93,26 +96,28 @@
             </div>
         {/if}
 
-        <div class="toTop">
-            <div id='to_up'>
-                <img style="width: 14px;margin-right: 2px;margin-left: 3px;" src="/themepack/vkify16/{$theme->getVersion()}/resource/toTop.png">
-                <span>{_to_top}</span>
-            </div>
-            
-            <div id='to_back'>
-                <img style="width: 14px;margin-right: 2px;rotate: 180deg;margin-left: 3px;" src="/themepack/vkify16/{$theme->getVersion()}/resource/toTop.png">
-            </div>
-        </div>
-
         <div class="layout">
             <div id="xhead" class="dm"></div>
+            
+            <div class="appbar{if isset($transparentAppbar) && $transparentAppbar} appbar--transparent{/if}" id="appbar">
+                <div class="hamburger" id="mobileMenuTrigger">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <use href="#menu-outline-24"></use>
+                    </svg>
+                    <span class="hamburger-badge" id="hamburgerBadge"></span>
+                </div>
+                <div class="appbar-title">{ifset title}{include title}{/ifset}</div>
+                <div class="appbar-extra" n:ifset="appbar_extra">
+                    {block appbar_extra}{/block}
+                </div>
+            </div>
             <div class="page_header">
                 <div class="page_header_inner">
                     <a href="/" class="home_button" title="{$instance_name}">
                         <span class="home_button_bg"></span>
                         <span n:if="$instance_name != \OPENVK_DEFAULT_INSTANCE_NAME && !$ovkHatEnabled" class="instance_name">{$instance_name}</span>
                     </a>
-                    {if (isset($thisUser) ? (!$thisUser->isBanned() XOR !$thisUser->isActivated()) : true)}
+                    {if !isset($thisUser) || (!$thisUser->isBanned() && $thisUser->isActivated())}
                         <div class="home_search" id="search_box">
                             <div id="search_box_fr">
                                 <form id="search_form" action="/search" method="get">
@@ -151,6 +156,9 @@
                                 </div>
                             {/if}
                         </div>
+                    {/if}
+
+                    {if !isset($thisUser) || $thisUser->isActivated() || $thisUser->isBanned() || $thisUser->isDeactivated()}
                         <div class="end_navigation">
                         {ifset $thisUser}
                             {if $thisUser->isDeactivated()}
@@ -161,26 +169,24 @@
                                 <div class="link">
                                     <a id="userMenuTrigger" data-tippy-content-id="userMenuTooltip" data-tippy-trigger="click" data-tippy-placement="bottom-end">
                                         <div id="userMenuName">{$thisUser->getFirstName()}</div>
-                                        <img id="userMenuAvatar" src="{if str_contains($thisUser->getAvatarUrl('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$thisUser->getAvatarUrl('miniscule')}{/if}">
+                                        {include 'components/avatar.latte', author => $thisUser, size => 'miniscule', id => 'userMenuAvatar'}
                                         <div id="userMenuArrow"></div>
                                     </a>
                                 </div>
                                 <div id="userMenuTooltip" class="tippy-content-template">
                                     <div class="tippy-menu">
-                                        <a href="/id{$thisUser->getId()}">{_my_page}</a>
-                                        <div class="separator"></div>
-                                        <a href="/edit">{_edit}</a>
-                                        <a href="/settings">{_menu_settings}</a>
-                                        <a href="/support">{_menu_help}</a>
-                                        <div class="separator"></div>
-                                        <a href="{if $userTainted}/setSID/unset?hash={rawurlencode($csrfToken)}{else}/logout?hash={urlencode($csrfToken)}{/if}">{_menu_logout}</a>
-                                    </div>
-                                </div>
-                                <div n:if="$userTainted" id="taintedUserTooltip" class="tippy-content-template" style="display: none;">
-                                    <div class="popup">
-                                        <a href="javascript:void(0)" class="popup-close" aria-label="{_close}"></a>
-                                        <b>{_you_entered_as} {$thisUser->getCanonicalName()}</b>
-                                        <p>{_please_rights|firstUpper} {_click_on} <a href="/setSID/unset?hash={rawurlencode($csrfToken)}">{_there}</a>, {_to_leave}.</p>
+                                        {if $thisUser->isBanned()}
+                                            <a href="/support">{_menu_help}</a>
+                                            <a href="{if $userTainted}/setSID/unset?hash={rawurlencode($csrfToken)}{else}/logout?hash={urlencode($csrfToken)}{/if}">{_menu_logout}</a>
+                                        {else}
+                                            <a href="/id{$thisUser->getId()}">{_my_page}</a>
+                                            <div class="separator"></div>
+                                            <a href="/edit">{_edit}</a>
+                                            <a href="/settings">{_menu_settings}</a>
+                                            <a href="/support">{_menu_help}</a>
+                                            <div class="separator"></div>
+                                            <a href="{if $userTainted}/setSID/unset?hash={rawurlencode($csrfToken)}{else}/logout?hash={urlencode($csrfToken)}{/if}">{_menu_logout}</a>
+                                        {/if}
                                     </div>
                                 </div>
                             {/if}
@@ -194,17 +200,41 @@
                 </div>
             </div>
 
-            <div class="sidebar" n:if="!$hideSidebar">
+            <div class="sidebar" {if $hideSidebar}style="display: none;"{/if}>
                 <div class="sidebar_inner">
                     {ifset $thisUser}
+                        <div class="mobile-profile-bar-wrap mobileonly">
+                            <a href="{$thisUser->getURL()}" class="mobile-profile-bar">
+                                <div class="mobile-profile-bg" style="background-image: url({$thisUser->getAvatarUrl('medium')|noescape})"></div>
+                                <div class="mobile-profile-avatar-wrap">
+                                    {include 'components/avatar.latte', author => $thisUser, size => 'medium', id => 'mobileProfileAvatar'}
+                                </div>
+                                <div class="mobile-profile-info">
+                                    <div class="mobile-profile-name">{$thisUser->getFirstName()}&nbsp;{$thisUser->getLastName()}</div>
+                                    {if $thisUser->getStatus()}
+                                        <div class="mobile-profile-status">{$thisUser->getStatus()|truncate:60}</div>
+                                    {/if}
+                                </div>
+                            </a>
+                            <a href="{if $userTainted}/setSID/unset?hash={rawurlencode($csrfToken)}{else}/logout?hash={urlencode($csrfToken)}{/if}" class="mobile-profile-logout" aria-label="{_menu_logout}" title="{_menu_logout}">
+                                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><use href="#door-arrow-right-outline-24"></use></svg>
+                            </a>
+                        </div>
                         {if !$thisUser->isBanned() XOR !$thisUser->isActivated() XOR $thisUser->isDeactivated()}
-                            <a href="{$thisUser->getURL()}" class="link my_page" title="{_my_page} [Alt+Shift+.]" accesskey=".">
+                            <a href="{$thisUser->getURL()}" class="link my_page nomobile" title="{_my_page} [Alt+Shift+.]" accesskey=".">
                                 <div class="link_icon"></div>
                                 <span>{_my_page}</span>
                             </a>
                             <a n:if="$thisUser->getLeftMenuItemStatus('news')" href="/feed" class="link my_feed" title="{_news} [Alt+Shift+,]" accesskey=",">
                                 <div class="link_icon"></div>
-                                <span>{_news}</span>
+                                <span>{_feed}</span>
+                            </a>
+                            <a href="/notifications" class="link my_feedback mobileonly" title="{_my_feedback} [Alt+Shift+N]" accesskey="n">
+                                <div class="link_icon"></div>
+                                <span>{_my_feedback}</span>
+                                <object type="internal/link" n:if="$thisUser->getNotificationsCount() > 0">
+                                    <b>{$thisUser->getNotificationsCount() > 99 ? '99+' : $thisUser->getNotificationsCount()}</b>
+                                </object>
                             </a>
                             <a n:if="$thisUser->getLeftMenuItemStatus('messages')" href="/im" class="link my_messages">
                                 <div class="link_icon"></div>
@@ -217,7 +247,7 @@
                                 <div class="link_icon"></div>
                                 <span>{_mobile_friends}</span>
                                 <object type="internal/link" n:if="$thisUser->getRequestsCount() > 0">
-                                    <a href="/friends{$thisUser->getId()}?act=incoming" class="linkunderline">
+                                    <a href="/friends{$thisUser->getId()}?act=incoming">
                                        <b>{$thisUser->getRequestsCount()}</b>
                                     </a>
                                 </object>
@@ -246,6 +276,10 @@
                                 <div class="link_icon"></div>
                                 <span>{_mobile_notes}</span>
                             </a>
+                            <a href="/settings" class="link my_settings mobileonly">
+                                <div class="link_icon"></div>
+                                <span>{_mobile_settings}</span>
+                            </a>
                             
                             {if $thisUser->getLeftMenuItemStatus('docs') || $thisUser->getLeftMenuItemStatus('fave')}
                                 <div class="menu_divider"></div>
@@ -257,16 +291,32 @@
                                     <div class="link_icon"></div>
                                     <span>{_bookmarks_tab}</span>
                                 </a>
+                                <a href="/support" class="link my_helpdesk">
+                                    <div class="link_icon"></div>
+                                    <span>{_header_help|firstUpper}</span>
+                                    <object type="internal/link" n:if="$ticketAnsweredCount > 0">
+                                        {var $answeredTicketId = null}
+                                        {foreach (new \openvk\Web\Models\Repositories\Tickets())->getTicketsByUserId($thisUser->getId(), 1) as $t}
+                                            {if $t->getType() === 1}
+                                                {var $answeredTicketId = $t->getId()}
+                                                {breakIf true}
+                                            {/if}
+                                        {/foreach}
+                                        <a href="/support/view/{$answeredTicketId}" class="linkunderline">
+                                            <b>{$ticketAnsweredCount}</b>
+                                        </a>
+                                    </object>
+                                </a>
                             {/if}
                             <div id="_groupListPinnedGroups">
                                 <div n:if="$thisUser->getPinnedClubCount() > 0" class="menu_divider"></div>
 
                                 <a n:foreach="$thisUser->getPinnedClubs() as $pinnedClub" href="{$pinnedClub->getURL()}" class="link group_link">
                                     <div class="link_icon"></div>
-                                    <span>{ovk_proc_strtr($pinnedClub->getName(), 14)}</span>
+                                    <span>{ovk_proc_strtr($pinnedClub->getName(), 28)}</span>
 
                                     <object type="internal/link" style="white-space: normal;" id="sug{$pinnedClub->getId()}" n:if="$pinnedClub->getSuggestedPostsCount($thisUser) > 0 && $pinnedClub->getWallType() == 2">
-                                        <a href="/club{$pinnedClub->getId()}/suggested" class="linkunderline">
+                                        <a href="/club{$pinnedClub->getId()}/suggested">
                                             <b>{$pinnedClub->getSuggestedPostsCount($thisUser)}</b>
                                         </a>
                                     </object>
@@ -322,17 +372,15 @@
                                 <a href="{$newsLink}">{_news_more}</a>
                             </div>
 
-                            <a n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['enable'] && $thisUser->getLeftMenuItemStatus('poster')" href="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['link']}" >
-                                <img src="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['src']}" alt="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['caption']}" class="psa-poster" style="max-width: 100%; margin-top: 15px;" />
+                            <a class="psa-poster-wrapper" n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['enable'] && $thisUser->getLeftMenuItemStatus('poster')" href="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['link']}" >
+                                <img src="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['src']}" alt="{php echo \OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['caption']}" class="psa-poster" style="max-width: 100%;" />
                             </a>
-
                             <div class="menu_divider" style="margin-left: 0; margin-top: 15px;"></div>
 
-                            <div class="left_menu_nav_wrap" n:if="$thisUser->getLeftMenuItemStatus('links')">
+                            <div class="left_menu_nav_wrap">
                                 <a href="/club1">{_footer_blog|firstUpper}</a>
-                                <a href="/support">{_footer_help|firstUpper}</a>
                                 <a href="/terms">{_footer_rules|firstUpper}</a>
-                                <a href="javascript:void(0);" id="moreOptionsLink" data-tippy-content-id="moreOptionsContent" data-tippy-trigger="mouseenter focus" data-tippy-placement="bottom-start" data-tippy-append-to="body" data-tippy-max-width="300"><vkifyloc name="more" fallback="show_more" /></a>
+                                <a href="javascript:void(0);" id="moreOptionsLink" data-tippy-content-id="moreOptionsContent" data-tippy-placement="bottom-start"><vkifyloc name="more" fallback="show_more" /></a>
                                 
                                 <div id="moreOptionsContent" class="tippy-content-template">
                                     <div class="tippy-menu">
@@ -353,25 +401,37 @@
                                 </div>
                             </div>
                         {elseif !$thisUser->isActivated()}
-                            <a href="/logout?hash={urlencode($csrfToken)}" class="link">{_menu_logout}</a>
-                        {else}
-                            <a href="/support" class="link">{_menu_support}
-                                {if $ticketAnsweredCount > 0}
-                                    (<b>{$ticketAnsweredCount}</b>)
-                                {/if}
-                            </a>
-                            <a href="/logout?hash={urlencode($csrfToken)}" class="link">{_menu_logout}</a>
+                            <a href="/logout?hash={urlencode($csrfToken)}" class="link"><span>{_menu_logout}</span></a>
+                        {elseif $thisUser->isDeleted()}
+                            <div class="deactivated">
+                                {_profile_deactivated_status}.
+                                <a href="/settings/reactivate"><vkifyloc name="restore" />.</a>    
+                            </div>
                         {/if}
+                        <div class="sidebar_audio_player mobileonly" id="sidebar_audio_player">
+                            <div class="sidebar_ap_play_btn" id="sidebar_ap_play_btn">
+                                <svg class="sidebar_ap_play_icon" width="24" height="24" viewBox="0 0 24 24"><use href="#play-24"></use></svg>
+                                <svg class="sidebar_ap_pause_icon" width="24" height="24" viewBox="0 0 24 24"><use href="#pause-24"></use></svg>
+                            </div>
+                            <div class="sidebar_ap_track_info">
+                                <div class="sidebar_ap_track_name"></div>
+                                <div class="sidebar_ap_track_performer"></div>
+                            </div>
+                            <div class="sidebar_ap_right_btn" id="sidebar_ap_right_btn">
+                                <svg class="sidebar_ap_next_icon" width="24" height="24" viewBox="0 0 24 24"><use href="#skip-next-24"></use></svg>
+                                <svg class="sidebar_ap_cancel_icon" width="24" height="24" viewBox="0 0 24 24"><use href="#cancel-24"></use></svg>
+                            </div>
+                        </div>
                     {else}
                         <form id="fastLogin" action="/login" method="POST" enctype="multipart/form-data">
-                            <label for="login"><span>{_email}:</span></label>
+                            <label class="field" for="login"><span>{_email}:</span></label>
                             <input id="login" type="text" name="login" required />
-                            <label for="password"><span>{_password}:</span></label>
+                            <label class="field" for="password"><span>{_password}:</span></label>
                             <input id="password" type="password" name="password" required />
                             <input type="hidden" name="jReturnTo" value="{$_SERVER['REQUEST_URI']}" />
                             <input type="hidden" name="hash" value="{$csrfToken}" />
-                            <input type="submit" value="{_log_in}" class="button" style="display: inline-block; font-family: Tahoma" />
-                            <a href="/reg"><input type="button" value="{_registration}" class="button button_blue" style="font-family: Tahoma" /></a><br><br>
+                            <input type="submit" value="{_log_in}" class="button" style="display: inline-block;" />
+                            <a href="/reg"><input type="button" value="{_registration}" class="button button_blue" /></a><br><br>
                             {if !\OPENVK_ROOT_CONF['openvk']['preferences']['security']['disablePasswordRestoring']}
                             <div class="forgot">
                                 <a href="/restore">{_forgot_password}</a>
@@ -386,14 +446,29 @@
 
             <div class="page_body">
                     <script n:ifset="$flashMessage">
-                        NewNotification(
-                            {$flashMessage->title},
-                            {$flashMessage->msg ?? ''},
-                            null,
-                            () => {},
-                            5000,
-                            false
-                        );
+                        (function () {
+                            function showFlashMessage() {
+                                if (typeof NewNotification === 'function') {
+                                    NewNotification(
+                                        {$flashMessage->title},
+                                        {$flashMessage->msg ?? ''}
+                                    );
+                                } else if (typeof MessageBox === 'function') {
+                                    MessageBox(
+                                        {$flashMessage->title},
+                                        {$flashMessage->msg ?? ''},
+                                        [window.lang?.close ?? 'Close'],
+                                        [() => {}]
+                                    );
+                                }
+                            }
+
+                            if (typeof NewNotification === 'function' || typeof MessageBox === 'function') {
+                                showFlashMessage();
+                            } else {
+                                document.addEventListener('DOMContentLoaded', showFlashMessage);
+                            }
+                        })();
                     </script>
                 {ifset wrap}
                     {include wrap}
@@ -403,7 +478,7 @@
                             <div id="auth" class="page-wrap">
                                 <div class="page_content">
                                     <h2 n:ifset="header" class="page_block_h2">
-                                        <div class="page_block_header clear_fix">
+                                        <div class="page_block_header">
                                             <div class="page_block_header_inner _header_inner">
                                                 {include header}
                                             </div>
@@ -449,13 +524,24 @@
                 {/if}
                 </div>
             </div>
+			
+			<div class="toTop">
+				<div id="wrap">
+					<nobr>{_to_top}</nobr>
+				</div>
+			</div>
+			
             <div id="ajloader" class="loader">
                 <div class="pr pr_baw pr_medium">
                     <div class="pr_bt"></div><div class="pr_bt"></div><div class="pr_bt"></div>
                 </div>
             </div>
-
-        {include "components/cookies.latte"}
+        <div class="bottom-popups" n:ifcontent>
+            {include "components/globalalert.latte"}
+            {include "components/tainted.latte"}
+            {include "components/http_warn.latte"}
+            {include "components/cookies.latte"}
+        </div>
 
         {script "js/node_modules/msgpack-lite/dist/msgpack.min.js"}
         {script "js/node_modules/soundjs/lib/soundjs.min.js"}
@@ -474,6 +560,7 @@
         {ifset $thisUser}
             {script "js/al_notifs.js"}
             {script "js/al_feed.js"}
+            {script "js/al_suggestions.js"}
         {/ifset}
 
         {script "js/node_modules/leaflet/dist/leaflet.js"}
@@ -536,6 +623,8 @@
                 "max_attachments": {\OPENVK_ROOT_CONF["openvk"]["preferences"]["wall"]["postSizes"]["maxAttachments"] ?? 10},
                 "max_filesize_mb": 100,
                 "current_id": {isset($thisUser) ? $thisUser->getId() : 0},
+                "status": {isset($thisUser) ? $thisUser->getStatus() : ""},
+                "broadcast_music": {isset($thisUser) ? $thisUser->isBroadcastEnabled() : false},
                 "disable_ajax": {isset($disable_ajax) ? $disable_ajax : 0},
                 "max_add_fields": {ovkGetQuirk("users.max-fields")},
                 "docs_max": {\OPENVK_ROOT_CONF["openvk"]["preferences"]["docs"]["maxSize"]},
@@ -553,13 +642,9 @@
 
         <script src="/themepack/vkify16/{$theme->getVersion()}/resource/js/ui/page.js"></script>
         <script src="/themepack/vkify16/{$theme->getVersion()}/resource/js/ui/tooltips.js"></script>
-        <script n:if="isset($userTainted) && $userTainted">
-        DismissablePopup.create({
-            trigger: 'userMenuTrigger',
-            content: 'taintedUserTooltip',
-            id: 'tainted',
-        });
-        </script>
+
+        <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/core/router.js"></script>
+        <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/mobile.js"></script>
 
         {* Bundled themepack JS (see build.mjs for module order) *}
         <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/dist/vkify16.bundle.js"></script>
@@ -570,7 +655,6 @@
         {ifset bodyScripts}
             {include bodyScripts}
         {/ifset}
-        <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/core/router.js"></script>
     </body>
 </html>
 {/if}

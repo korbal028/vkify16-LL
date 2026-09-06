@@ -7,9 +7,6 @@
 
 {block bodyScripts}
     <script src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/autosave.js"></script>
-    {if $mode === 'avatar'}
-        <script src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/avatar-upload.js"></script>
-    {/if}
 {/block}
 
 {block content}
@@ -172,7 +169,7 @@
                             <div class="form_field">
                                 <div class="form_label"></div>
                                 <div class="form_data">
-                                    <label class="checkbox"><input type="checkbox" name="broadcast_music" n:attr="checked => $user->isBroadcastEnabled()">{_broadcast_audio}</label>
+                                    <label class="checkbox"><input type="checkbox" name="broadcast_music" n:attr="checked => $user->isBroadcastEnabled()"><span>{_broadcast_audio}</span></label>
                                 </div>
                             </div>
                             <input type="hidden" name="hash" value="{$csrfToken}" />

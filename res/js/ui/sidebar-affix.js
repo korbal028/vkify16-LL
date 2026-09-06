@@ -7,6 +7,7 @@ vkify.once("updateNarrow", () => {
         const wideCol = document.querySelector('.wide_column');
         const layout = document.querySelector('.layout');
 
+        if (window.isMobile && window.isMobile()) return;
         if (!bar || !wideCol || !layout) return;
         if (document.querySelector('#ajloader.shown')) return;
         if (document.body.classList.contains('dimmed')) return;
@@ -39,8 +40,9 @@ vkify.once("updateNarrow", () => {
 
         const toPx = (value) => Math.round(value) + 'px';
 
-        if ((st <= headH && !smallEnough) || tooBig) {
+        if (st <= pagePos - headH || tooBig) {
             styles = { marginTop: '0px' };
+            needFix = false;
         } else if (st <= Math.min(lastSt, barPos - headH) || smallEnough) {
             styles = { top: toPx(headH), marginLeft: toPx(marginLeft) };
             needFix = true;
@@ -55,7 +57,7 @@ vkify.once("updateNarrow", () => {
         }
 
         const allKeys = ['top', 'bottom', 'marginTop', 'marginLeft'];
-        const same = JSON.stringify(styles) === JSON.stringify(lastStyles);
+        const same = allKeys.every((key) => (styles[key] || '') === (lastStyles[key] || ''));
         if (!same) {
             for (let i = 0; i < allKeys.length; i++) {
                 bar.style[allKeys[i]] = styles[allKeys[i]] || '';
@@ -148,6 +150,11 @@ vkify.once('affixedNavigation', () => {
         const menu = getMenu();
         const pageBody = getPageBody();
         if (!menu || !pageBody || !state) {
+            return;
+        }
+
+        if (window.isMobile && window.isMobile()) {
+            resetMenu(menu);
             return;
         }
 

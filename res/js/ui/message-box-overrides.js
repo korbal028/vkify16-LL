@@ -113,7 +113,10 @@ vkify.bindOnce('messageBoxOverrides', () => {
                     const prev = stack[myIndex - 1];
                     const prevNode = prev?.getNode?.();
                     if (prevNode?.length) {
-                        prevNode.removeClass('msgbox-hidden').attr('style', '');
+                        prevNode.removeClass('msgbox-hidden');
+                        if (prevNode.nodes[0]) {
+                            prevNode.nodes[0].style.display = '';
+                        }
                     }
                 }
                 origExitDialog.call(this);
@@ -239,7 +242,7 @@ vkify.onPage(() => {
     vkify.bindOnce('hookShowAudioAddDialog', () => {
         vkify.hook(window, '__showAudioAddDialog', function () {
             u('.ovk-diag-cont').last().setAttribute('style', 'width:500px');
-            u('.ovk-diag-body').attr('style', 'padding:0px !important;height: 260px;');
+            u('.ovk-diag-body').attr('style', 'padding:0px !important;');
             const action = document.querySelector('.ovk-diag-action');
             if (action && action.children.length >= 2) {
                 action.insertBefore(action.children[1], action.children[0]);
@@ -249,67 +252,22 @@ vkify.onPage(() => {
     });
 
     vkify.bindOnce('hookFeedSettingsLink', () => {
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#__feed_settings_link')) return;
+        const styleFeedSettingsDialog = () => {
+            const container = document.getElementById('_feed_settings_container');
+            if (!container) return;
 
-            u('.ovk-diag-cont').last().setAttribute('style', 'width:500px');
-            u('.ovk-diag-body').attr('style', 'padding:0px !important; min-height: 290px; overflow: hidden;');
+            const diag = container.closest('.ovk-diag-cont');
+            if (diag) {
+                diag.setAttribute('style', 'width:500px');
+            }
+
+            const body = container.closest('.ovk-diag')?.querySelector('.ovk-diag-body');
+            if (body) {
+                body.setAttribute('style', 'padding:0px !important; min-height: 290px; overflow: hidden;');
+            }
 
             const content = document.getElementById('__content');
             if (!content) return;
-            content.classList.add('page_padding');
-
-            // Stock renders a <table> into #__content for the 'main' tab and
-            // an entity_vertical_list of checkboxes for the 'ignored' tab.
-            // We rewrite both into nicer layouts. For the main tab we keep
-            // stock's input nodes so its event handlers stay bound; for the
-            // ignored tab we replace stock's checkbox+global-button UX with
-            // a per-item inline "don't ignore" button.
-
-            const rebuildMainForm = (table) => {
-                const pageSelect = table.querySelector('#pageSelect');
-                const pageNumber = table.querySelector('#pageNumber');
-                const showIgnored = table.querySelector('#showIgnored');
-                const applyBtn = table.querySelector("input[type='button']");
-                if (!pageSelect || !pageNumber || !showIgnored || !applyBtn) return;
-
-                const showIgnoredLabel = table.querySelector(`label[for='showIgnored']`)?.textContent ?? '';
-                const labels = table.querySelectorAll('.nobold');
-                const perPageLabel = labels[0]?.textContent ?? '';
-                const startFromLabel = labels[1]?.textContent ?? '';
-
-                const form = u(`
-                    <div class="form_group">
-                        <div class="form_field">
-                            <div class="form_label">${perPageLabel}</div>
-                            <div class="form_data" data-slot="pageSelect"></div>
-                        </div>
-                        <div class="form_field">
-                            <div class="form_label">${startFromLabel}</div>
-                            <div class="form_data" data-slot="pageNumber"></div>
-                        </div>
-                        <div class="form_field">
-                            <div class="form_label"></div>
-                            <div class="form_data">
-                                <label class="checkbox" data-slot="showIgnored">
-                                    <span>${showIgnoredLabel}</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="form_field">
-                            <div class="form_label"></div>
-                            <div class="form_data" data-slot="apply"></div>
-                        </div>
-                    </div>
-                `).first();
-
-                form.querySelector('[data-slot="pageSelect"]').appendChild(pageSelect);
-                form.querySelector('[data-slot="pageNumber"]').appendChild(pageNumber);
-                form.querySelector('[data-slot="showIgnored"]').prepend(showIgnored);
-                form.querySelector('[data-slot="apply"]').appendChild(applyBtn);
-
-                content.replaceChildren(form);
-            };
 
             const rebuildIgnoredItem = (item) => {
                 if (item.__vkifyRebuilt) return;
@@ -335,10 +293,9 @@ vkify.onPage(() => {
                     const params = Number(id) > 0
                         ? `user_ids=${encodeURIComponent(id)}`
                         : `group_ids=${encodeURIComponent(Math.abs(id))}`;
-                    const res = await fetch(`/method/newsfeed.deleteBan?auth_mechanism=roaming&${params}`);
-                    const resp = await res.json();
-                    if (resp.error_code) {
-                        console.error(resp.error_msg);
+                    const resp = await ky.get(`/method/newsfeed.deleteBan?auth_mechanism=roaming&${params}`).json().catch(() => null);
+                    if (!resp || resp.error_code) {
+                        console.error(resp?.error_msg);
                         btn.disabled = false;
                         btn.classList.remove('lagged');
                         return;
@@ -366,14 +323,25 @@ vkify.onPage(() => {
 
             const onContentChange = () => {
                 const table = content.querySelector('table');
-                if (table) { rebuildMainForm(table); return; }
+                if (table) {
+                    content.classList.remove('page_padding');
+                    return;
+                }
 
+                content.classList.add('page_padding');
                 content.querySelectorAll('.entity_vertical_list_item').forEach(rebuildIgnoredItem);
                 stripRemoveIgnoresButton();
             };
 
             onContentChange();
             new MutationObserver(onContentChange).observe(content, { childList: true, subtree: true });
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#__feed_settings_link')) return;
+            e.preventDefault();
+
+            styleFeedSettingsDialog();
         });
     });
 });

@@ -58,6 +58,7 @@ vkify.once('masonry', () => {
             });
 
             container.style.height = Math.max(...colHeights) - gap + 'px';
+            window.__vkifySchedulePaginatorCheck?.();
         }
 
         function init(container, userOptions = {}) {
@@ -134,9 +135,13 @@ vkify.once('masonry', () => {
         }
 
         function refresh(container) {
-            const instance = get(container);
-            if (instance) {
-                requestAnimationFrame(() => instance.layout());
+            if (typeof container === 'string') container = document.querySelector(container);
+            const data = instances.get(container);
+            if (data) {
+                requestAnimationFrame(() => {
+                    data.instance.layout();
+                    attachImageListeners(container, data.instance.layout);
+                });
             }
         }
 
@@ -154,6 +159,7 @@ vkify.once('masonry', () => {
 function initAlbumMasonry() {
     if (document.querySelector('.album-flex')) {
         Masonry.initAll('.album-flex', { itemSelector: '.masonry-item', columns: 3, gap: 10, breakpoints: { 600: 2, 450: 1 } });
+        requestAnimationFrame(() => window.__vkifySchedulePaginatorCheck?.());
     }
 }
 
