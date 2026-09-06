@@ -3967,8 +3967,47 @@ ul.im-page--dcontent {
 .messenger-app--messages---message ._content .attachments>.msg-attach-j * {
     max-width: 100%;
 }
-.messenger-app--messages---message .msg-actions {
-    display: inline;
+.msg-hover-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity .15s;
+    flex-shrink: 0;
+    margin-left: 6px;
+}
+.messenger-app--messages---message:hover .msg-hover-actions {
+    opacity: 1;
+}
+.msg-hover-actions--more-wrap {
+    display: inline-flex;
+}
+.msg-hover-actions--btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: var(--muted-text-color);
+    cursor: pointer;
+    transition: background-color .1s, color .1s;
+}
+.msg-hover-actions--btn:hover {
+    background-color: var(--module-background-color--secondary);
+    color: var(--link-color, #5181b8);
+}
+.msg-hover-actions--btn svg {
+    width: 15px;
+    height: 15px;
+    fill: currentColor;
+    pointer-events: none;
+}
+.msg-hover-actions--mirror svg {
+    transform: scaleX(-1);
+}
+.tippy-menu a.msg-menu-danger {
+    color: #e64646;
 }
 .messenger-app--typing-status {
     color: var(--muted-text-color);
