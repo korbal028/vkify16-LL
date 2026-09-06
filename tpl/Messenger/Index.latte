@@ -3,8 +3,11 @@
 
 {block content}
 	{var $sendMessageButton = '<a href="/friends' . $thisUser->getId() . '" class="button">' . tr('send_message') . '</a>'}
-	<div class="page_block">
+	<div class="page_block wall_posts_tabs">
 		{include "../components/page_block_header.latte", title => "my_messages", count => sizeof($corresps), extra => $sendMessageButton}
+	</div>
+
+    <div class="page_block">
 
         <div class="scroll_container" style="min-height: 430px;">
 		    {if sizeof($corresps) > 0}
@@ -22,7 +25,7 @@
                                     <div class="nim-peer--photo _im_dialog_photo">
                                         <a href="{$recipient->getURL()}" target="_blank">
                                             <div class="im_grid">
-                                                {include '../components/avatar.latte', author => $recipient, size => 'miniscule', width => 50, height => 50, alt => tr('photo')}
+                                                <img src="{if str_contains($recipient->getAvatarURL('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$recipient->getAvatarURL('miniscule')}{/if}" width="50" height="50" alt="{_photo}" loading="lazy">
                                             </div>
                                         </a>
                                     </div>
@@ -46,10 +49,10 @@
                                         <span class="nim-dialog--preview _dialog_body" tabindex="0">
                                             <span class="nim-dialog--who">
                                                 <div class="im-prebody">
-                                                    {include '../components/avatar.latte', author => $lastMsg->getSender(), size => 'miniscule', alt => ''}
+                                                    <img alt="" src="{if str_contains($lastMsg->getSender()->getAvatarURL('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$lastMsg->getSender()->getAvatarURL('miniscule')}{/if}">
                                                 </div>
                                             </span>
-                                            <span class="nim-dialog--inner-text">{$lastMsg->getText()|truncate: 150}</span>
+                                            <span class="nim-dialog--inner-text">{$lastMsg->getPreviewText()|noescape}</span>
                                         </span>
                                     </div>
                                 </div>
