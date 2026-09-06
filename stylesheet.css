@@ -4443,6 +4443,13 @@ ul.im-page--dcontent {
 .messenger-app--messages---message ._content .attachments>.msg-attach-j * {
     max-width: 100%;
 }
+.msg-time-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
 .msg-hover-actions {
     display: flex;
     align-items: center;
@@ -4450,7 +4457,6 @@ ul.im-page--dcontent {
     opacity: 0;
     transition: opacity .15s;
     flex-shrink: 0;
-    margin-left: 6px;
 }
 .messenger-app--messages---message:hover .msg-hover-actions {
     opacity: 1;

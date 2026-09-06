@@ -152,6 +152,10 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="msg-time-actions">
+                                <div class="time" align="right">
+                                    <span data-bind="html: timing.sent"></span>
+                                </div>
                                 <div class="msg-hover-actions">
                                     <!-- ko if: sender.id === {$thisUser->getId()} -->
                                     <a href="#" class="msg-hover-actions--btn" title="{_edit}" data-bind="click: function() { window.Msg.editMessage(uuid, text); }">
@@ -177,8 +181,6 @@
                                     </a>
                                     <!-- /ko -->
                                 </div>
-                                <div class="time" align="right">
-                                    <span data-bind="html: timing.sent"></span>
                                 </div>
                             </div>
                         </div>
