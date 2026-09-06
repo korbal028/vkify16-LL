@@ -21,49 +21,52 @@ window.toggle_comment_textarea = window.toggle_comment_textarea || function (id)
 };
 
 window.setTip = window.setTip || function (obj, text, interactive = false) {
+    const zIndex = obj?.closest('.ovk-msg-all') ? 9999 : 99;
     tippy(obj, {
         content: `<text style="font-size: 11px;">${text}</text>`,
         allowHTML: true,
         placement: 'top',
         theme: 'light vk',
         animation: 'up_down',
-        interactive: interactive
+        interactive: interactive,
+        zIndex: zIndex
     });
 };
 
 window.expandText = function (item) {
-    const container = item.closest('.really_text') || item.parentElement;
-    if (!container) return;
-
-    const truncated = container.querySelector('.truncated_text');
-    const full = container.querySelector('.full_text');
+    const element = item.parentElement;
+    if (!element) return;
+    
+    const parentContainer = element.parentElement;
+    if (!parentContainer) return;
+    
+    const truncated = parentContainer.querySelector('.truncated_text');
+    const full = parentContainer.querySelector('.full_text');
     if (!truncated || !full) return;
-
-    const collapsed = full.classList.contains('hidden');
-    truncated.style.display = collapsed ? 'none' : 'inline';
-    full.classList.toggle('hidden', !collapsed);
-    item.textContent = tr(collapsed ? 'show_less' : 'show_more');
+    
+    if (element.classList.contains('truncated_text')) {
+        truncated.classList.add('hidden');
+        full.classList.remove('hidden');
+    } else {
+        full.classList.add('hidden');
+        truncated.classList.remove('hidden');
+    }
 };
 
 window.showBlueWarning = window.showBlueWarning || function (content) {
     NewNotification(tr('warning'), content, null, () => { }, 10000, false);
 };
-
 window.allLangsPopup = window.allLangsPopup || async function () {
     const CF = window.ContentFetcher;
-    const loader = CF.createLoader();
-    loader.show();
 
     try {
-        const content = await CF.fetchPageContent('/language', '#all_languages_list');
+        const content = await CF.fetchPageContent('/language', '#all_languages_list', { showLoader: true });
         const returnTo = encodeURI(window.location.pathname + window.location.search);
         content.querySelectorAll('a[href^="/language?lg="]').forEach(link => {
             const url = new URL(link.href);
             url.searchParams.set('jReturnTo', returnTo);
             link.href = url.pathname + url.search;
         });
-
-        loader.hide();
 
         window.langPopup = new CMessageBox({
             title: tr('select_language'),
@@ -75,10 +78,10 @@ window.allLangsPopup = window.allLangsPopup || async function () {
         setTimeout(() => {
             $('.ovk-msg-all[data-id]').css('width', '700px');
             $('.ovk-diag-body')[0].style.setProperty('padding', '20px 0 20px 30px', 'important');
+            $('.ovk-diag-action').prepend('<a class="button button_light" style="float: left; margin: 0;" href="https://hosted.weblate.org/projects/openvk/" target="_blank">' + tr('language_add_strings') + '</a>');
             window.reinitializeTooltips?.();
         }, 0);
     } catch (e) {
-        loader.hide();
         console.error('Failed to load languages:', e);
     }
 };
@@ -150,6 +153,46 @@ window.switchProfileInfo = window.switchProfileInfo || function () {
         infobtn.text = tr('additional_information');
     }
 };
+
+window.updateToTopArea = function () {
+    const layout = document.querySelector('.layout');
+    if (!layout) return;
+
+    const leftOffset = layout.getBoundingClientRect().left;
+    if (leftOffset > 114) {
+        document.documentElement.style.setProperty('--to-top-width', leftOffset + 'px');
+    } else {
+        document.documentElement.style.setProperty('--to-top-width', '114px');
+    }
+};
+
+let toTopAreaRafPending = false;
+window.addEventListener('resize', () => {
+    if (toTopAreaRafPending) return;
+    toTopAreaRafPending = true;
+    requestAnimationFrame(() => {
+        toTopAreaRafPending = false;
+        window.updateToTopArea();
+    });
+});
+vkify.onPage(window.updateToTopArea);
+
+window.updateToTopOpacity = function () {
+    const scrollY = window.scrollY || window.pageYOffset;
+    const opacity = Math.min(Math.max((scrollY - 200) / 300, 0), 1);
+    document.documentElement.style.setProperty('--to-top-opacity', opacity);
+};
+
+let toTopOpacityRafPending = false;
+window.addEventListener('scroll', () => {
+    if (toTopOpacityRafPending) return;
+    toTopOpacityRafPending = true;
+    requestAnimationFrame(() => {
+        toTopOpacityRafPending = false;
+        window.updateToTopOpacity();
+    });
+}, { passive: true });
+vkify.onPage(window.updateToTopOpacity);
 
 function initLocalStorageCheckboxes() {
     document.querySelectorAll('input[data-act="localstorage_item"]').forEach((input) => {

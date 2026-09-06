@@ -1,3 +1,11 @@
+window.isMobile = function() {
+    return window.matchMedia("(max-width: 770px)").matches;
+};
+
+window.isMobileAndExpanded = function() {
+    return window.isMobile() && document.body.classList.contains('menu-expanded');
+};
+
 window.router = new class Router {
     constructor() {
         window.__vkifyResourceBase = window.vkify?.resourceBase || window.__vkifyResourceBase;
@@ -6,9 +14,7 @@ window.router = new class Router {
         this.navigationState = {
             isNavigating: false,
             pendingNavigation: null,
-            navigationTimeout: null,
-            navigationQueue: [],
-            timeoutDuration: 3000
+            navigationQueue: []
         };
         this.managedStyleLinks = new Map();
         this._loadedScriptPaths = new Set();
@@ -42,11 +48,6 @@ window.router = new class Router {
     }
 
     cancelPendingNavigation() {
-        if (this.navigationState.navigationTimeout) {
-            clearTimeout(this.navigationState.navigationTimeout);
-            this.navigationState.navigationTimeout = null;
-        }
-
         if (this.navigationState.pendingNavigation) {
             console.log('ROUTER | Cancelling pending navigation');
             this.navigationState.pendingNavigation = null;
@@ -54,44 +55,6 @@ window.router = new class Router {
 
         this.navigationState.isNavigating = false;
         u('body').removeClass('ajax_request_made');
-    }
-
-    setNavigationTimeout(fallbackCallback, duration = null) {
-        const timeoutDuration = duration ?? this.navigationState.timeoutDuration;
-        this.navigationState.navigationTimeout = setTimeout(() => {
-            console.log('ROUTER | Navigation timeout reached, showing notification');
-            
-            const lang = window.vkifylang || {};
-            const title = lang.ajax_timeout_title || 'Page loading slowly';
-            const body = `
-                <div>${lang.ajax_timeout_body || 'The page is taking longer than expected to load.'} <a href="#" id="ajax_timeout_load">${lang.ajax_timeout_link || 'Load without AJAX'}</a></div>
-            `;
-            
-            NewNotification(title, body, null, Function.noop, 999999, false);
-            
-            this.navigationState.timeoutNotificationId = _n_counter;
-            
-            setTimeout(() => {
-                const loadLink = ge('ajax_timeout_load');
-                
-                if (loadLink) {
-                    loadLink.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('ROUTER | User chose to load without AJAX');
-                        u(e.target).closest('.notification_ballon').addClass('disappears');
-                        setTimeout(() => {
-                            u(e.target).closest('.notification_ballon').remove();
-                        }, 500);
-                        window.router.navigationState.timeoutNotificationId = null;
-                        window.router.cancelPendingNavigation();
-                        if (typeof fallbackCallback === 'function') {
-                            fallbackCallback();
-                        }
-                    });
-                }
-            }, 100);
-        }, timeoutDuration);
     }
 
     queueNavigation(navigationRequest) {
@@ -124,17 +87,6 @@ window.router = new class Router {
 
     completeNavigation() {
         this.cancelPendingNavigation();
-        
-        if (this.navigationState.timeoutNotificationId) {
-            const notificationElement = u(`#n${this.navigationState.timeoutNotificationId}`);
-            if (notificationElement.length > 0) {
-                notificationElement.addClass('disappears');
-                setTimeout(() => {
-                    notificationElement.remove();
-                }, 500);
-            }
-            this.navigationState.timeoutNotificationId = null;
-        }
         
         setTimeout(() => {
             this.processNextNavigation();
@@ -309,7 +261,7 @@ window.router = new class Router {
     }
 
     _appendPage(parsed_content) {
-        const requiredElements = ['.page_body', '.sidebar', '.page_header'];
+        const requiredElements = ['.page_body', '.sidebar', '.page_header', '.appbar'];
         const missingElements = requiredElements.filter(selector => !parsed_content.querySelector(selector));
         if (missingElements.length > 0) {
             console.warn('Missing required elements for AJAX transition:', missingElements);
@@ -321,6 +273,7 @@ window.router = new class Router {
         const sidebar = u(parsed_content.querySelector('.sidebar'));
         const pageHeader = u(parsed_content.querySelector('.page_header'));
         const backdrop = u(parsed_content.querySelector('#backdrop'));
+        const appbar = u(parsed_content.querySelector('.appbar'));
 
         this._syncManagedStyles(parsed_content);
 
@@ -348,6 +301,33 @@ window.router = new class Router {
 
         u('.page_body').html(pageBody.html());
         u('.sidebar').html(sidebar.html());
+        u('.appbar').html(appbar.html());
+
+        if (typeof window.__resetPaginatorState === 'function') {
+            window.__resetPaginatorState();
+        }
+
+        if (window.__profileAppbarScrollHandler) {
+            window.removeEventListener('scroll', window.__profileAppbarScrollHandler);
+            window.__profileAppbarScrollHandler = null;
+        }
+        const liveAppbar = document.getElementById('appbar');
+        const newAppbarHasTransparent = appbar.nodes[0]?.classList.contains('appbar--transparent');
+
+        if (newAppbarHasTransparent) {
+            document.body.classList.add('has-transparent-appbar');
+        } else {
+            document.body.classList.remove('has-transparent-appbar');
+        }
+
+        if (liveAppbar) {
+            if (newAppbarHasTransparent) {
+                liveAppbar.classList.add('appbar--transparent');
+            } else {
+                liveAppbar.classList.remove('appbar--transparent', 'appbar--scrolled');
+                liveAppbar.style.removeProperty('--appbar-bg-alpha');
+            }
+        }
 
         if (backdrop.length > 0) {
             if (u('#backdrop').length === 0) {
@@ -385,10 +365,6 @@ window.router = new class Router {
         window.processVkifyLocTags?.();
         window.reinitializeTooltips?.();
 
-        if (window.addSuggestedTabToWall) {
-            setTimeout(window.addSuggestedTabToWall, 100);
-        }
-
         if (location.pathname === '/search') {
             window.initializeSearchOptions;
             window.initializeSearchOptionToggle;
@@ -421,13 +397,7 @@ window.router = new class Router {
             if (typeof window.__resetPaginatorState === 'function') {
                 window.__resetPaginatorState();
             }
-            if (window.__vkifyPaginatorObserver && typeof window.__vkifyPaginatorObserver.observe === 'function') {
-                try {
-                    window.__vkifyPaginatorObserver.observe(paginator);
-                } catch (e) {
-                    console.warn('Failed to observe paginator:', e);
-                }
-            }
+            window.__vkifySchedulePaginatorCheck?.();
         }
 
         const smallBlock = u(`div[class$="_small_block"]`).nodes[0];
@@ -442,15 +412,6 @@ window.router = new class Router {
     }
 
     _unlinkObservers() {
-        const paginator = u('.vkify-paginator:not(.vkify-paginator-at-top)').nodes[0];
-        if (paginator && window.__vkifyPaginatorObserver && typeof window.__vkifyPaginatorObserver.unobserve === 'function') {
-            try {
-                window.__vkifyPaginatorObserver.unobserve(paginator);
-            } catch (e) {
-                console.warn('Failed to unobserve paginator:', e);
-            }
-        }
-
         const smallBlock = u(`div[class$="_small_block"]`).nodes[0];
         if (smallBlock && typeof smallBlockObserver !== 'undefined') {
             smallBlockObserver.unobserve(smallBlock);
@@ -538,28 +499,42 @@ window.router = new class Router {
 
         u('body').addClass('ajax_request_made');
 
-        this.setNavigationTimeout(() => {
-            console.log('ROUTER | Navigation timeout, falling back to browser navigation');
-            resolvedUrl.searchParams.delete('al');
-            location.assign(resolvedUrl);
-        });
-
         try {
             const oldUrl = location.href;
             const response = await fetch(resolvedUrl, {
-                method: 'AJAX',
+                method: 'GET',
                 referrer: oldUrl,
+                redirect: 'manual',
                 headers: {
                     'X-OpenVK-Ajax-Query': '1',
                 }
             });
 
+            if (response.status === 404 || response.status === 402 || response.status === 401) {
+                let errorBody = tr('error');
+                
+                if (response.status === 404) {
+                    errorBody = tr('app_err_not_found');
+                } else if (response.status === 403 || response.status === 401) {
+                    errorBody = tr('forbidden');
+                }
+
+                MessageBox(tr('error'), errorBody, [tr('close')], [() => {}]);
+                this.cancelPendingNavigation();
+                return;
+            }
+
             const text = await response.text();
             const parser = new DOMParser();
             const parsedContent = parser.parseFromString(text, 'text/html');
 
-            if (response.redirected) {
-                history.replaceState({ from_router: 1 }, '', response.url);
+            const nextBody = parsedContent.querySelector('body');
+            if (nextBody && nextBody.getAttribute('data-themepack') !== 'vkify16') {
+                console.log('ROUTER | Next page is not vkify16, navigating directly');
+                this.cancelPendingNavigation();
+                resolvedUrl.searchParams.delete('al');
+                location.assign(resolvedUrl);
+                return;
             }
 
             this._closeMsgs();
@@ -693,6 +668,16 @@ u(document).on('submit', 'form', async (e) => {
         const text = await response.text();
         const parser = new DOMParser();
         const parsedContent = parser.parseFromString(text, 'text/html');
+
+        const nextBody = parsedContent.querySelector('body');
+        if (nextBody && nextBody.getAttribute('data-themepack') !== 'vkify16') {
+            console.log('ROUTER | Form response is not vkify16, navigating directly');
+            window.router.cancelPendingNavigation();
+            u('#ajloader').removeClass('shown');
+            const targetUrl = response.redirected ? response.url : urlObj.toString();
+            location.assign(targetUrl);
+            return;
+        }
 
         if (response.redirected) {
             history.replaceState({ from_router: 1 }, '', response.url);

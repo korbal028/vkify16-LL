@@ -12,6 +12,18 @@
             ['title' => tr("videos"), 'count' => $count]
         ], extra => '<a class="button" href="javascript:showFastVideoUpload()">'.tr("upload_video").'</a>'
         }
+        {include "../components/search_bar.latte",
+            id => 'videos_search_header',
+            form_class => 'search_page_form',
+            placeholder => tr('header_search'),
+            action => '/search',
+            section => 'videos',
+            input_name => 'q',
+            input_title => tr('header_search'),
+            input_maxlength => '59',
+            autocomplete => 'off',
+            class => 'videos_search_header'
+        }
         <div class="video_block_layout">
             {var $data = is_array($iterator) ? $iterator : iterator_to_array($iterator)}
             {if sizeof($data) > 0}
@@ -27,9 +39,8 @@
                         "perPage"  => $perPage ?? \OPENVK_DEFAULT_PER_PAGE,
                         "atBottom" => true,
                     ]}
-            {else}
-                {include "../components/nothing.latte", icon => 'video_empty.png'}
             {/if}
+            {include "../components/nothing.latte", icon => 'video_empty.png', className => sizeof($data) !== 0 ? 'hidden' : ''}
         </div>
     </div>
 {/block}

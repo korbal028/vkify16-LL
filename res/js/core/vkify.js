@@ -354,29 +354,56 @@
 
 })();
 
-function showHttpWarning() {
-    if (location.protocol !== 'http:' || location.host.includes('localhost')) return;
-    if (window.DismissablePopup?.isShownThisSession?.('http_warn')) return;
-
-    const isOpenvkXyz = location.host.includes('openvk.xyz');
-    const message = isOpenvkXyz
-        ? `You are using an insecure protocol: <b>http</b>. Please always use <b>https</b>.<br><a href='https://${location.host}/'>Switch to https »</a>`
-        : `This OpenVK instance uses the outdated <b>http</b> protocol.<br>Please, migrate to <b>https</b>.`;
-
-    const triggerEl = document.querySelector('.home_button');
-    if (!triggerEl) return;
-
-    window.DismissablePopup?.create?.({
-        trigger: triggerEl,
-        content: `<div class="popup-content" style="padding:12px 28px 12px 16px;max-width:280px;position:relative;">${message}<button class="popup-close" style="position:absolute;top:4px;right:4px;background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">&times;</button></div>`,
-        id: 'http_warn',
-        placement: 'bottom-start',
-        theme: 'light vk dismissable',
-        autoShow: true,
-        hideOnTriggerClick: true
-    });
-}
+window.dismissHttpWarning = function() {
+    const warningEl = document.querySelector('.http-warning-popup');
+    if (warningEl) {
+        warningEl.style.display = 'none';
+    }
+    vkify.setCookie('vkify_popup_shown_http_warn', '1', 36500);
+};
 
 vkify.ready(() => {
-    setTimeout(showHttpWarning, 500);
+    const warningEl = document.querySelector('.http-warning-popup');
+    if (warningEl) {
+        const isHttp = location.protocol === 'http:' && !location.host.includes('localhost') && !location.host.includes('127.0.0.1');
+        const isDismissed = vkify.getCookie('vkify_popup_shown_http_warn') === '1';
+        
+        if (isHttp && !isDismissed) {
+            warningEl.style.display = 'block';
+        } else {
+            warningEl.style.display = 'none';
+        }
+    }
+
+    const currentTheme = document.body.getAttribute('data-themepack');
+    if (currentTheme !== 'vkify16') {
+        if (typeof NewNotification === 'function') {
+            NewNotification(
+                window.vkifylang?.something_not_right || "Something isn't right.",
+                window.vkifylang?.themepack_warn || "Please set \"VKify16\" in the styles settings again, or reload the page.",
+                null,
+                () => {},
+                2147483647,
+                false
+            );
+        }
+    }
+
+
+
+    const musicKeysDown = [32, 37, 39, 107, 109];
+    const musicKeysUp = [87, 65, 83, 68, 82, 77];
+
+    const handleKeyPropagation = (e) => {
+        const target = e.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            const keysToBlock = e.type === 'keydown' ? musicKeysDown : (e.type === 'keyup' ? musicKeysUp : []);
+            if (keysToBlock.includes(e.keyCode || e.which)) {
+                e.stopPropagation();
+            }
+        }
+    };
+
+    document.documentElement.addEventListener('keydown', handleKeyPropagation, false);
+    document.documentElement.addEventListener('keyup', handleKeyPropagation, false);
 });

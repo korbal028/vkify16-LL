@@ -31,7 +31,6 @@
 	display: block;
 	animation-name: notification_ballon_appears;
 	animation-duration: 0.5s;
-	cursor: pointer;
 	width: 320px;
 	border-radius: 4px;
 	box-shadow: 0 2px 3px rgba(0, 0, 0, .2);
@@ -79,7 +78,9 @@
 .notification_ballon wrap {
 	display: flex;
 	flex-direction: row;
-	padding: 11px 12px 12px;
+	padding: 6px 12px 12px;
+	width: 100%;
+	box-sizing: border-box;
 }
 .notification_ballon wrap content {
 	font-size: 12.5px;
@@ -95,9 +96,11 @@
 	border-radius: 50%;
 }
 .notification_ballon wrap content a {
-	text-decoration: underline;
 	color: var(--white);
 	font-weight: 700;
+}
+.notification_ballon wrap content a:hover {
+	text-decoration: underline;
 }
 
 .feedback_row {
@@ -118,6 +121,7 @@
 	background-color: var(--module-background-color--secondary);
 	position: relative;
 	vertical-align: top;
+	object-fit: cover;
 }
 .feedback_content {
 	margin: 0 0 0 62px;
@@ -162,6 +166,9 @@
 .tippy-box[data-theme~="notifications"] .scroll_container {
 	max-height: 400px;
 	overflow-y:auto;
+}
+.tippy-box[data-theme~="notifications"] .page_block_h2:not(.tabs_header) {
+	display: none;
 }
 .top_notify_show_all {
 	display: block;

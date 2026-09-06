@@ -4,12 +4,10 @@
 {var $target = $comment->getTarget()}
 {var $postId = $target instanceof \openvk\Web\Models\Entities\Post ? $target->getId() : NULL}
 {var $correctLink = $correctLink ?? true}
-<div data-id="1_{$comment->getId()}" class="post reply" id="_comment{$comment->getId()}" data-comment-id="{$comment->getId()}" data-owner-id="{$author->getId()}" data-from-group="{$author instanceof $Club ? 'true' : 'false'}" n:attr="data-post-id => $postId">
+<div data-id="1_{$comment->getId()}" class="post reply scroll_node" data-uniqueid="reply_{$comment->getId()}" id="_comment{$comment->getId()}" data-comment-id="{$comment->getId()}" data-owner-id="{$author->getId()}" data-from-group="{$author instanceof $Club ? 'true' : 'false'}" n:attr="data-post-id => $postId">
     <div class="reply_wrap">
         <a class="reply_image{if !$author instanceof $Club && $author->isOnline()} online{/if}" href="{$author->getURL()}">
-            <img src="{if str_contains($author->getAvatarUrl('miniscule'), 'camera_200.png')}{if $author instanceof $Club}/themepack/vkify16/{$theme->getVersion()}/resource/community_200.png{else}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{/if}{else}{$author->getAvatarUrl('miniscule')}{/if}" 
-                width="30" 
-                class="reply_img" />
+            {include 'avatar.latte', author => $author, size => 'miniscule', width => 30, class => 'reply_img'}
         </a>
         <div class="reply_content">
             <div class="fl_r reply_actions_wrap">
@@ -24,20 +22,11 @@
                     <b class="post-author-name">{$author->getCanonicalName()}</b>
                 </a>
                 <a class="page_verified" n:if="$author->isVerified()" href="/verify"></a>
+                <span n:if="$comment->canBeEditedBy($thisUser)" class="wall_edit_label"><span class="divider"></span>{_logs_editing|lower}</span>
             </div>
             <div class="post-content" id="{$comment->getId()}">
                 <div class="text reply_text" id="text{$comment->getId()}">
-                    {var $commentText = $comment->getText($html = false)}
-                    {var $bigText = strlen($commentText) > 500}
-                    <div class="really_text">
-                        {if $bigText}
-                            <span class="truncated_text">{$commentText|truncate:500|noescape}</span>
-                            <span class="full_text hidden">{$comment->getText()|noescape}</span>
-                            <a href="javascript:void(0)" class="collapse_button" onclick="javascript:expandText(this)">{_show_more}</a>
-                        {else}
-                            {$comment->getText()|noescape}
-                        {/if}
-                    </div>
+                    {include "truncated_text.latte", html => $comment->getText(), plain => $comment->getText(false), limit => 500}
 
                     {var $attachmentWidth = 180}
                     {var $attachmentsLayout = $comment->getChildrenWithLayout($attachmentWidth)}

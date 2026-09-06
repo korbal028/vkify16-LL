@@ -1,6 +1,8 @@
 (function () {
 'use strict';
 
+let cachedNotificationsContent = null;
+
 function formatNotifyCount(count) {
     return count > 99 ? '99+' : String(count);
 }
@@ -11,35 +13,95 @@ function parseNotifyCount(text) {
     return parseInt(t, 10) || 0;
 }
 
-window.incrementNotificationsCounter = function () {
-    const btn = document.querySelector('#top_notify_btn');
-    if (!btn) return;
+vkify.ready(() => {
+    const customSoundId = "vkify_notification";
+    createjs.Sound.registerSound("/themepack/vkify16/3.3.5.2/resource/bb1.mp3", customSoundId);
 
-    btn.querySelectorAll('object').forEach(el => el.remove());
+    window.__actualPlayNotifSound = function() {
+        createjs.Sound.play(customSoundId);
+    };
 
-    let countEl = btn.querySelector('.top_notify_count');
-    const nextCount = (countEl ? parseNotifyCount(countEl.textContent) : 0) + 1;
-
-    if (!countEl) {
-        countEl = document.createElement('div');
-        countEl.className = 'top_notify_count';
-        btn.appendChild(countEl);
+    if (window.playNotifSound && window.playNotifSound !== Function.noop) {
+        window.playNotifSound = window.__actualPlayNotifSound;
     }
 
-    countEl.textContent = formatNotifyCount(nextCount);
-    btn.classList.add('has_notify');
-};
+
+    vkify.hook(window, 'incrementNotificationsCounter', function () {
+        cachedNotificationsContent = null;
+
+        const btn = document.querySelector('#top_notify_btn');
+        if (!btn) return;
+
+        btn.querySelectorAll('object').forEach(el => el.remove());
+
+        let countEl = btn.querySelector('.top_notify_count');
+        const nextCount = (countEl ? parseNotifyCount(countEl.textContent) : 0) + 1;
+
+        if (!countEl) {
+            countEl = document.createElement('div');
+            countEl.className = 'top_notify_count';
+            btn.appendChild(countEl);
+        }
+
+        countEl.textContent = formatNotifyCount(nextCount);
+        btn.classList.add('has_notify');
+
+        const mobileLink = document.querySelector('a.my_feedback.mobileonly');
+        if (mobileLink) {
+            let obj = mobileLink.querySelector('object');
+            const mobileCount = (obj ? parseNotifyCount(obj.querySelector('b')?.textContent) : 0) + 1;
+            if (!obj) {
+                obj = document.createElement('object');
+                obj.type = 'internal/link';
+                const b = document.createElement('b');
+                obj.appendChild(b);
+                mobileLink.appendChild(obj);
+            }
+            mobileLink.querySelector('object b').textContent = formatNotifyCount(mobileCount);
+        }
+    }, 'replace');
+
+    const topNotifyBtn = document.querySelector('#top_notify_btn');
+    if (topNotifyBtn) {
+        const notifyObserver = new MutationObserver(() => {
+            cachedNotificationsContent = null;
+        });
+        notifyObserver.observe(topNotifyBtn, { childList: true, subtree: true, characterData: true });
+    }
+});
 
 vkify.once("initNotificationsPopup", () => {
     async function fetchNotificationsContent() {
-        try {
-            const notificationsContainer = await window.ContentFetcher.fetchPageContent('/notifications', '.notifications', { ajaxQuery: false });
+        const notificationsContainer = await window.ContentFetcher.fetchPageContent('/notifications', '.notifications', { ajaxQuery: false });
 
-            if (notificationsContainer) {
-                return notificationsContainer.innerHTML + `<a href="/notifications" class="top_notify_show_all">${tr('show_more')}</a>`;
+        if (notificationsContainer) {
+            const paginator = notificationsContainer.querySelector('.vkify-paginator');
+            if (paginator) {
+                const wrap = paginator.closest('.clear_fix');
+                if (wrap && wrap.children.length === 1) {
+                    wrap.remove();
+                } else {
+                    paginator.remove();
+                }
             }
+            return notificationsContainer.innerHTML + `<a href="/notifications" class="top_notify_show_all">${tr('show_more')}</a>`;
+        }
 
-            return `<div class="no_notifications">${tr('no_data_description')}</div>`;
+        return `<div class="no_notifications">${tr('no_data_description')}</div>`;
+    }
+
+    function isNotificationsCacheValid() {
+        return cachedNotificationsContent !== null;
+    }
+
+    async function getNotificationsContent() {
+        if (isNotificationsCacheValid()) {
+            return cachedNotificationsContent;
+        }
+
+        try {
+            cachedNotificationsContent = await fetchNotificationsContent();
+            return cachedNotificationsContent;
         } catch (error) {
             console.error('Failed to fetch notifications:', error);
             return `<div class="notifications_error">${tr('error')}</div>`;
@@ -69,6 +131,7 @@ vkify.once("initNotificationsPopup", () => {
             theme: 'light vk notifications',
             maxWidth: 470,
             arrow: false,
+            zIndex: 99,
             appendTo: 'parent',
             popperOptions: {
                 modifiers: [{
@@ -84,9 +147,13 @@ vkify.once("initNotificationsPopup", () => {
             async onShow(instance) {
                 document.querySelector('#top_notify_btn')?.classList.add('top_nav_btn_active');
                 document.querySelector('#top_notify_btn')?.classList.remove('has_notify');
-                instance.setContent(loadingContent);
-                const freshNotificationsContent = await fetchNotificationsContent();
-                instance.setContent(freshNotificationsContent);
+                document.querySelector('a.my_feedback.mobileonly object')?.remove();
+
+                if (!isNotificationsCacheValid()) {
+                    instance.setContent(loadingContent);
+                }
+
+                instance.setContent(await getNotificationsContent());
             }
         });
     };

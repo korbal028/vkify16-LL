@@ -6,8 +6,9 @@ vkify.once('mediaModals', function () {
     const fastError = window.fastError;
     const findAuthor = window.find_author;
     const CF = window.ContentFetcher;
+    const ModalUtils = window.ModalUtils;
 
-    async function vkifyOpenVideo(video_arr = [], init_player = true, skipUrlUpdate = false) {
+    async function vkifyOpenVideo(video_arr = [], init_player = true, skipUrlUpdate = false, startAtTime = 0) {
         try {
             const loader = CF.createLoader();
             if (loader.isShown()) return;
@@ -16,7 +17,7 @@ vkify.once('mediaModals', function () {
             const video_owner = video_arr[0];
             const video_id = video_arr[1];
             let video_api = null;
-            let isPrivacyRestricted = await CF.checkPrivacyRestriction(video_owner, 'user');
+            let isPrivacyRestricted = await ModalUtils.checkPrivacyRestriction(video_owner, 'user');
 
             if (!isPrivacyRestricted) {
                 try {
@@ -67,7 +68,7 @@ vkify.once('mediaModals', function () {
                 <div class="video-player-container" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe
                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
-                       src="https://www.youtube-nocookie.com/embed/${video_id}"
+                       src="https://www.youtube-nocookie.com/embed/${video_id}?autoplay=1&start=${Math.floor(startAtTime)}"
                        frameborder="0"
                        sandbox="allow-same-origin allow-scripts allow-popups"
                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
@@ -81,8 +82,8 @@ vkify.once('mediaModals', function () {
                         const author_name = `${author.first_name} ${author.last_name}`;
                         player_html = `
                     <div class="video-player-container" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                        <div class='bsdn media' data-name="${escapeHtml(video_object.title)}" data-author="${escapeHtml(author_name)}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-                            <video class='media' src='${video_object.player}' style="width: 100%; height: 100%; object-fit: contain;"></video>
+                        <div class='bsdn media' data-id="${pretty_id}" data-name="${escapeHtml(video_object.title)}" data-author="${escapeHtml(author_name)}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+                            <video class='media' data-src='${video_object.player}' style="width: 100%; height: 100%; object-fit: contain;"></video>
                         </div>
                     </div>
                 `;
@@ -95,15 +96,13 @@ vkify.once('mediaModals', function () {
             <div class="video_block_layout">
                 ${player_html}
             </div>
-            <div class="video_info">
-                <div id='video_info_loader'></div>
-            </div>
+            <div class="video_info"></div>
             <div class="clear_fix video_comments" id="video_comments_section" style="display: none;">
                 <div class="pr pr_medium"><div class="pr_bt"></div><div class="pr_bt"></div><div class="pr_bt"></div></div>
             </div>
         </div>`;
 
-            const msgbox = CF.createModal({
+            const msgbox = ModalUtils.createModal({
                 type: 'video',
                 title: escapeHtml(video_object.title),
                 content: content,
@@ -115,47 +114,67 @@ vkify.once('mediaModals', function () {
 
             if (video_object.platform != 'youtube' && video_object.is_processed) {
                 bsdnInitElement(msgbox.getNode().find('.bsdn').nodes[0]);
+                const modalPlayer = msgbox.getNode().find('.bsdn > video').nodes[0];
+                if (modalPlayer && startAtTime > 0) {
+                    if (!modalPlayer.src && modalPlayer.dataset.src) {
+                        modalPlayer.src = modalPlayer.dataset.src;
+                        modalPlayer.load();
+                    }
+                    modalPlayer.addEventListener('loadedmetadata', function() {
+                        modalPlayer.currentTime = startAtTime;
+                        modalPlayer.play();
+                    }, { once: true });
+                    if (modalPlayer.readyState >= 1) {
+                        modalPlayer.currentTime = startAtTime;
+                        modalPlayer.play();
+                    }
+                }
             }
 
+
             async function loadVideoInfo() {
-                u('#video_info_loader').html(`<div class="pr pr_medium"><div class="pr_bt"></div><div class="pr_bt"></div><div class="pr_bt"></div></div>`);
+                const videoInfoTarget = msgbox.getNode().find('.video_info');
 
-                const doc = await CF.fetchPageContent(`/video${pretty_id}`, null, { ajaxQuery: false });
-                const results = u(doc);
+                await CF.loadInto(videoInfoTarget, `/video${pretty_id}`, null, {
+                    fetchOptions: { ajaxQuery: false },
+                    loaderOptions: { size: 'medium' },
+                    render(doc) {
+                        const results = u(doc);
 
-                const videoInfo = results.find('.video_info');
-                if (videoInfo.length > 0) {
-                    const viewButton = `
+                        const videoInfo = results.find('.video_info');
+                        if (videoInfo.length > 0) {
+                            const viewButton = `
             <a href="/video${pretty_id}" class="video_view_button button button_light">
                 <span class="video_view_link" style="display: inline!important">${tr("view_video")}</span>
             </a>`;
-                    const moreActions = videoInfo.find('.video_info_more_actions');
-                    if (moreActions.length > 0) {
-                        moreActions.before(viewButton);
-                    } else {
-                        videoInfo.append(viewButton);
+                            const moreActions = videoInfo.find('.video_info_more_actions');
+                            if (moreActions.length > 0) {
+                                moreActions.before(viewButton);
+                            } else {
+                                videoInfo.append(viewButton);
+                            }
+                            videoInfoTarget.html(videoInfo.html());
+                            bsdnHydrate();
+
+                            setTimeout(() => {
+                                window.reinitializeTooltips();
+                            }, 200);
+                        } else {
+                            videoInfoTarget.html(`<div class="video_info_title">${escapeHtml(video_object.title)}</div>`);
+                        }
+
+                        const videoComments = results.find('.video_comments');
+                        if (videoComments.length > 0) {
+                            msgbox.getNode().find('#video_comments_section').html(videoComments.html());
+                            msgbox.getNode().find('#video_comments_section').attr('style', '');
+                            bsdnHydrate();
+
+                            setTimeout(() => {
+                                window.reinitializeTooltips();
+                            }, 200);
+                        }
                     }
-                    msgbox.getNode().find('.video_info').html(videoInfo.html());
-                    bsdnHydrate();
-
-                    setTimeout(() => {
-                        window.reinitializeTooltips();
-                    }, 200);
-                } else {
-
-                    msgbox.getNode().find('.video_info').html(`<div class="video_info_title">${escapeHtml(video_object.title)}</div>`);
-                }
-
-                const videoComments = results.find('.video_comments');
-                if (videoComments.length > 0) {
-                    msgbox.getNode().find('#video_comments_section').html(videoComments.html());
-                    msgbox.getNode().find('#video_comments_section').attr('style', '');
-                    bsdnHydrate();
-
-                    setTimeout(() => {
-                        window.reinitializeTooltips();
-                    }, 200);
-                }
+                });
 
                 window._currentMediaModalRefresh = () => {
                     if (document.contains(msgbox.getNode().nodes[0])) {
@@ -166,189 +185,67 @@ vkify.once('mediaModals', function () {
 
             loadVideoInfo();
 
-            CF.setupCloseButton(msgbox, '#__modalPlayerClose');
-            CF.setupDimmerClose(msgbox);
+            ModalUtils.setupCloseButton(msgbox, '#__modalPlayerClose');
+            ModalUtils.setupDimmerClose(msgbox);
             msgbox.getNode().find('#__modalPlayerClose').on('click', (e) => {
                 e.preventDefault();
-                u('.miniplayer').remove();
                 msgbox.close();
             });
 
-            CF.setupCleanup(msgbox, () => {
-                CF.unregisterModal(msgbox);
+            msgbox.getNode().find('#__modalPlayerMinimize').on('click', (e) => {
+                e.preventDefault();
+
+                const miniplayer = u(`
+                    <div class="miniplayer">
+                        <div class="miniplayer-head">
+                            <b>${escapeHtml(video_object.title)}</b>
+                            <div class="miniplayer-head-buttons">
+                                <div id="__miniplayer_return"></div>
+                                <div id="__miniplayer_close"></div>
+                            </div>
+                        </div>
+                        <div class="miniplayer-body"></div>
+                    </div>
+                `);
+
+                msgbox.hide();
+
+                const videoBlockLayout = msgbox.getNode().find('.video_block_layout').nodes[0];
+                const originalParent = videoBlockLayout.parentNode;
+                const originalNextSibling = videoBlockLayout.nextSibling;
+
+                u('body').append(miniplayer);
+                miniplayer.find('.miniplayer-body').nodes[0].append(videoBlockLayout);
+                miniplayer.attr('style', 'left:100px;top:0px;');
+
+                miniplayer.find('#__miniplayer_return').on('click', () => {
+                    msgbox.reveal();
+                    originalParent.insertBefore(videoBlockLayout, originalNextSibling);
+                    miniplayer.remove();
+                });
+
+                miniplayer.find('#__miniplayer_close').on('click', () => {
+                    msgbox.close();
+                    miniplayer.remove();
+                });
+
+                $('.miniplayer').draggable({ cursor: 'grabbing', containment: 'window', cancel: '.miniplayer-body' });
+                $('.miniplayer').resizable({
+                    maxHeight: 2000,
+                    maxWidth: 3000,
+                    minHeight: 150,
+                    minWidth: 200
+                });
+            });
+
+            ModalUtils.setupCleanup(msgbox, () => {
+                ModalUtils.unregisterModal(msgbox);
                 clearVideoUrl();
                 window.cleanupModalTooltips?.(msgbox.getNode().nodes[0]);
                 window._currentMediaModalRefresh = null;
             });
 
             updateVideoUrl(pretty_id);
-
-            msgbox.getNode().find('#__modalPlayerMinimize').on('click', (e) => {
-                e.preventDefault();
-
-                u('.miniplayer').remove();
-
-                const miniplayer = u(`
-            <div class='miniplayer' data-video-id="${pretty_id}">
-                <div class='miniplayer-head'>
-                    <b>${escapeHtml(video_object.title)}</b>
-                    <div class='miniplayer-head-buttons'>
-                        <div id='__miniplayer_return' title="Restore"></div>
-                        <div id='__miniplayer_close' title="Close"></div>
-                    </div>
-                </div>
-                <div class='miniplayer-body' style="overflow: hidden;"></div>
-            </div>
-        `);
-
-                msgbox.hide();
-
-                u('body').append(miniplayer);
-
-                const videoContent = msgbox.getNode().find('.video_block_layout').nodes[0];
-                if (videoContent) {
-                    miniplayer.find('.miniplayer-body').nodes[0].appendChild(videoContent);
-                }
-
-                const savedSettings = JSON.parse(localStorage.getItem('miniplayerSettings') || '{}');
-                const defaultSettings = {
-                    width: 320,
-                    height: 180,
-                    left: 20,
-                    bottom: 20
-                };
-                const settings = { ...defaultSettings, ...savedSettings };
-
-                miniplayer.attr('style', `position: fixed; left: ${settings.left}px; bottom: ${settings.bottom}px; z-index: 9999; width: ${settings.width}px; height: ${settings.height}px;`);
-
-                miniplayer.find('#__miniplayer_return').on('click', (e) => {
-                    e.preventDefault();
-
-                    const videoContent = miniplayer.find('.miniplayer-body > *').nodes[0];
-                    if (videoContent) {
-                        videoContent.style.width = '';
-                        videoContent.style.height = '';
-                        videoContent.style.position = '';
-                        videoContent.style.left = '';
-                        videoContent.style.top = '';
-
-                        const iframe = videoContent.querySelector('iframe');
-                        const video = videoContent.querySelector('video');
-
-                        if (iframe) {
-                            iframe.style.width = '100%';
-                            iframe.style.height = '100%';
-                        }
-
-                        if (video) {
-                            video.style.width = '100%';
-                            video.style.height = '100%';
-                            video.style.objectFit = 'contain';
-                        }
-
-                        const videoInfo = msgbox.getNode().find('.video_info').nodes[0];
-                        if (videoInfo && videoInfo.parentNode) {
-                            videoInfo.parentNode.insertBefore(videoContent, videoInfo);
-                        }
-                    }
-
-                    msgbox.reveal();
-                    u('.miniplayer').remove();
-                });
-
-                miniplayer.find('#__miniplayer_close').on('click', (e) => {
-                    e.preventDefault();
-                    msgbox.close();
-                    u('.miniplayer').remove();
-                });
-
-                function saveMiniplayerSettings() {
-                    const miniplayerNode = miniplayer.nodes[0];
-                    const rect = miniplayerNode.getBoundingClientRect();
-                    const settings = {
-                        width: miniplayerNode.offsetWidth,
-                        height: miniplayerNode.offsetHeight,
-                        left: rect.left,
-                        bottom: window.innerHeight - rect.bottom
-                    };
-                    localStorage.setItem('miniplayerSettings', JSON.stringify(settings));
-                }
-
-                window.$(miniplayer.nodes[0]).draggable({
-                    cursor: 'grabbing',
-                    containment: 'window',
-                    handle: '.miniplayer-head',
-                    cancel: '.miniplayer-head-buttons',
-                    stop: function () {
-                        saveMiniplayerSettings();
-                    }
-                });
-
-                function adjustVideoPlayerSize() {
-                    const miniplayerBody = miniplayer.find('.miniplayer-body').nodes[0];
-                    const videoBlockLayout = miniplayer.find('.video_block_layout').nodes[0];
-
-                    if (videoBlockLayout && miniplayerBody) {
-                        const bodyWidth = miniplayerBody.offsetWidth;
-                        const bodyHeight = miniplayerBody.offsetHeight;
-                        const aspectRatio = 16 / 9;
-
-                        let newWidth = bodyWidth;
-                        let newHeight = bodyWidth / aspectRatio;
-
-                        if (newHeight > bodyHeight) {
-                            newHeight = bodyHeight;
-                            newWidth = bodyHeight * aspectRatio;
-                        }
-
-                        videoBlockLayout.style.width = newWidth + 'px';
-                        videoBlockLayout.style.height = newHeight + 'px';
-                        videoBlockLayout.style.position = 'absolute';
-
-                        const leftOffset = (bodyWidth - newWidth) / 2;
-                        const topOffset = (bodyHeight - newHeight) / 2;
-                        videoBlockLayout.style.left = leftOffset + 'px';
-                        videoBlockLayout.style.top = topOffset + 'px';
-
-                        const iframe = videoBlockLayout.querySelector('iframe');
-                        const video = videoBlockLayout.querySelector('video');
-
-                        if (iframe) {
-                            iframe.style.width = '100%';
-                            iframe.style.height = '100%';
-                        }
-
-                        if (video) {
-                            video.style.width = '100%';
-                            video.style.height = '100%';
-                        }
-                    }
-                }
-
-                window.$(miniplayer.nodes[0]).resizable({
-                    maxHeight: 2000,
-                    maxWidth: 3000,
-                    minHeight: 150,
-                    minWidth: 200,
-                    resize: function () {
-                        adjustVideoPlayerSize();
-                    },
-                    stop: function () {
-                        saveMiniplayerSettings();
-                    }
-                });
-
-                setTimeout(adjustVideoPlayerSize, 100);
-
-                const resizeHandler = () => adjustVideoPlayerSize();
-                window.addEventListener('resize', resizeHandler);
-
-                const originalRemove = miniplayer.remove;
-                miniplayer.remove = function () {
-                    window.removeEventListener('resize', resizeHandler);
-                    return originalRemove.call(this);
-                };
-            });
 
             loader.hide();
         } catch (err) {
@@ -387,21 +284,65 @@ vkify.once('mediaModals', function () {
         }
 
         try {
-            let photoOriginalUrl = photo;
             let photoOwnerId = parseInt(photo_id.split('_')[0]);
             let photoRealId = parseInt(photo_id.split('_')[1]);
             const currentUserId = window.openvk?.current_id || 0;
 
-            const content = `
+            let content;
+            if (window.isMobile && window.isMobile()) {
+                content = `
+        <div class="pv_wrapper mobile-photo-modal">
+            <div class="mobile-photo-header">
+                <div class="mph-left">
+                    <div id="__modal_photo_close" class="pv_back_btn" style="cursor:pointer;">
+                        <svg width="28" height="28" viewBox="0 0 28 28"><use href="#arrow-left-outline-28"></use></svg>
+                    </div>
+                    <div class="pv_title_group">
+                        <div class="pv_album_name"><div id='pv_actions_loader'></div></div>
+                        <div class="pv_counter"></div>
+                    </div>
+                </div>
+                <div class="mph-right">
+                    <div class="pv_actions_more_wrap" style="display:none;"></div>
+                </div>
+            </div>
+
+            <div class="mobile-photo-body pv_photo" style="overflow: hidden; position: relative; touch-action: none;">
+                <img src="${photo}" id="pv_photo_img" style="transform-origin: center center;" />
+                <div class="pv_nav_left" id="pv_nav_left" style="display: none;">
+                    <div class="pv_nav_btn">
+                        <div class="pv_nav_arrow"></div>
+                    </div>
+                </div>
+                <div class="pv_nav_right" id="pv_nav_right" style="display: none;">
+                    <div class="pv_nav_btn">
+                        <div class="pv_nav_arrow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-photo-footer">
+                <div class="pv_desc" style="display:none;"></div>
+                <div class="mobile-photo-actions pv_bottom_actions"></div>
+            </div>
+            
+            <div class="pv_right" style="display:none;"></div>
+        </div>`;
+            } else {
+                content = `
         <div class="pv_wrapper">
             <div class="pv_left">
                 <div class="pv_photo">
                     <img src="${photo}" id="pv_photo_img" />
                     <div class="pv_nav_left" id="pv_nav_left" style="display: none;">
-                        <div class="pv_nav_arrow"></div>
+                        <div class="pv_nav_btn">
+                            <div class="pv_nav_arrow"></div>
+                        </div>
                     </div>
                     <div class="pv_nav_right" id="pv_nav_right" style="display: none;">
-                        <div class="pv_nav_arrow"></div>
+                        <div class="pv_nav_btn">
+                            <div class="pv_nav_arrow"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="pv_bottom_info">
@@ -412,36 +353,12 @@ vkify.once('mediaModals', function () {
                     <div class="pv_bottom_actions"></div>
                 </div>
             </div>
-            <div class="pv_right">
-                <div id='pv_right_loader' class='pv_author_block'></div>
-            </div>
+            <div class="pv_right"></div>
         </div>`;
-
-            function buildPhotoActions(ownerId, photoId, realId, originalUrl) {
-                const isOwner = currentUserId === ownerId;
-                const csrfToken = vkify.getCsrf();
-                let html = '';
-
-                if (isOwner) {
-                    html += `<a id="_photoDelete" href="/photo${photoId}/delete?hash=${encodeURIComponent(csrfToken)}">${tr('delete')}</a>`;
-                    html += `<span class="divider"></span>`;
-                }
-
-                html += `<span class="pv_actions_more" role="button" data-tippy-content-id="pv_actions_more_menu_${realId}" data-tippy-theme="dark vk">${tr('show_more')}</span>`;
-                html += `<div id="pv_actions_more_menu_${realId}" class="tippy-menu tippy-content-template">`;
-                if (isOwner) {
-                    html += `<a href="javascript:showEditPhotoModal('${photoId}')">${tr('edit')}</a>`;
-                }
-                html += `<a href="${originalUrl}" target="_blank">${tr('open_original')}</a>`;
-                if (!isOwner) {
-                    html += `<a href="javascript:reportPhoto(${realId})">${tr('report')}</a>`;
-                }
-                html += `</div>`;
-
-                return html;
             }
 
-            const msgbox = CF.createModal({
+
+            const msgbox = ModalUtils.createModal({
                 type: 'photo',
                 title: tr('photo'),
                 content: content,
@@ -452,7 +369,16 @@ vkify.once('mediaModals', function () {
             const pretty_id = photo_id;
 
             function updatePhotoUrl(photoId, albumId = null) {
-                const value = albumId ? `photo${photoId}%2Falbum${albumId}` : `photo${photoId}`;
+                let value;
+                if (albumId) {
+                    value = `photo${photoId}%2Falbum${albumId}`;
+                } else if (type === 'post' && post) {
+                    value = `photo${photoId}%2Fwall${post}`;
+                } else if (type === 'comment' && post) {
+                    value = `photo${photoId}%2Fcomment${post}`;
+                } else {
+                    value = `photo${photoId}`;
+                }
                 CF.updateUrlParam('z', value, { skip: skipUrlUpdate });
             }
 
@@ -460,7 +386,7 @@ vkify.once('mediaModals', function () {
                 CF.clearUrlParam('z');
             }
 
-            CF.setupCloseButton(msgbox, '#__modal_photo_close');
+            ModalUtils.setupCloseButton(msgbox, '#__modal_photo_close');
 
             let json = null;
             let imagesCount = 0;
@@ -482,6 +408,26 @@ vkify.once('mediaModals', function () {
                 return json.body[_id];
             }
 
+            function preloadPhoto(url) {
+                if (!url) return;
+                const img = new Image();
+                img.src = url;
+            }
+
+            function preloadAdjacentPhotos() {
+                if (!json || !json.body || imagesCount <= 1) return;
+
+                const currentIndex = getIndex();
+                const prevIndex = currentIndex <= 1 ? imagesCount : currentIndex - 1;
+                const nextIndex = currentIndex >= imagesCount ? 1 : currentIndex + 1;
+
+                const prevPhoto = getByIndex(prevIndex);
+                const nextPhoto = getByIndex(nextIndex);
+
+                if (prevPhoto?.url) preloadPhoto(prevPhoto.url);
+                if (nextPhoto?.url) preloadPhoto(nextPhoto.url);
+            }
+
             function reloadTitleBar() {
                 const countText = imagesCount > 1 ? tr("photo_x_from_y", shown_offset, imagesCount) : '';
                 msgbox.getNode().find('.pv_counter').html(countText);
@@ -492,13 +438,15 @@ vkify.once('mediaModals', function () {
                     const form_data = new FormData();
                     form_data.append('parentType', contextType);
 
-                    const endpoint_url = `/iapi/getPhotosFromPost/${contextId}`;
+                    const contextParam = contextType === 'comment' ? `1_${contextId}` : contextId;
+                    const endpoint_url = `/iapi/getPhotosFromPost/${contextParam}`;
 
-                    const fetcher = await fetch(endpoint_url, {
+                    json = await CF.request(endpoint_url, {
                         method: 'POST',
                         body: form_data,
+                        responseType: 'json',
+                        ajaxQuery: false
                     });
-                    json = await fetcher.json();
                     imagesCount = Object.entries(json.body).length;
                 } else if (contextType == 'album') {
                     currentAlbumId = contextId;
@@ -553,21 +501,27 @@ vkify.once('mediaModals', function () {
                 if (!nextPhoto) return;
 
                 currentImageid = nextPhoto.id;
-                const photoURL = json?.body?.[currentImageid]?.url || photoOriginalUrl;
+                const photoURL = json?.body?.[currentImageid]?.url || photo;
 
                 msgbox.getNode().find('#pv_photo_img').attr('src', photoURL);
 
                 reloadTitleBar();
                 updatePhotoUrl(currentImageid, currentAlbumId);
-
-                msgbox.getNode().find('.pv_right').html(`<div id='pv_right_loader' class='pv_author_block'></div>`);
+                preloadAdjacentPhotos();
 
                 await loadPhotoInfoForPhoto(currentImageid);
             }
 
             async function initializeNavigation() {
-                if (post && post.length > 0) {
+                if (type === 'album' && post && post.length > 0) {
+                    currentAlbumId = post;
+                    await loadContext('album', post);
+                    shown_offset = getIndex();
+                } else if (type === 'post' && post && post.length > 0) {
                     await loadContext('post', post);
+                    shown_offset = getIndex();
+                } else if (type === 'comment' && post && post.length > 0) {
+                    await loadContext('comment', post);
                     shown_offset = getIndex();
                 } else if (type === 'album') {
                     try {
@@ -620,6 +574,7 @@ vkify.once('mediaModals', function () {
                 }
 
                 reloadTitleBar();
+                preloadAdjacentPhotos();
             }
 
             msgbox.getNode().find('#pv_nav_left').on('click', (e) => {
@@ -631,53 +586,344 @@ vkify.once('mediaModals', function () {
                 e.preventDefault();
                 slidePhoto(1);
             });
+            
+            if (window.isMobile && window.isMobile()) {
+                const img = msgbox.getNode().find('#pv_photo_img').nodes[0];
+                const container = msgbox.getNode().find('.mobile-photo-body').nodes[0];
+                const windowNode = msgbox.getNode().find('.ovk-photo-view-window').nodes[0];
+                const headerNode = msgbox.getNode().find('.mobile-photo-header').nodes[0];
+                const footerNode = msgbox.getNode().find('.mobile-photo-footer').nodes[0];
+                
+                let scale = 1;
+                let lastScale = 1;
+                let currentX = 0;
+                let currentY = 0;
+                let startDistance = 0;
+                let pinchMidX = 0;
+                let pinchMidY = 0;
+                let pinchStartX = 0;
+                let pinchStartY = 0;
+                let lastTap = 0;
+                let singleTapTimer = null;
+                let initialX = 0;
+                let initialY = 0;
+                let startTouchX = 0;
+                let startTouchY = 0;
+                let swipeAxis = null;
+                let uiVisible = true;
+                let opacity = 1;
+
+                function getDistance(touches) {
+                    return Math.hypot(
+                        touches[0].clientX - touches[1].clientX,
+                        touches[0].clientY - touches[1].clientY
+                    );
+                }
+
+                function getMidpoint(touches) {
+                    return {
+                        x: (touches[0].clientX + touches[1].clientX) / 2,
+                        y: (touches[0].clientY + touches[1].clientY) / 2,
+                    };
+                }
+
+                const MAX_SCALE = 5;
+
+                function clampPan() {
+                    const imgW = img.naturalWidth || img.offsetWidth || container.offsetWidth;
+                    const imgH = img.naturalHeight || img.offsetHeight || container.offsetHeight;
+                    const cW = container.offsetWidth;
+                    const cH = container.offsetHeight;
+                    const renderedW = Math.min(imgW, cW);
+                    const renderedH = Math.min(imgH, cH);
+                    const maxX = Math.max(0, (renderedW * scale - cW) / 2);
+                    const maxY = Math.max(0, (renderedH * scale - cH) / 2);
+                    currentX = Math.max(-maxX, Math.min(maxX, currentX));
+                    currentY = Math.max(-maxY, Math.min(maxY, currentY));
+                }
+
+                function updateTransform() {
+                    if (scale < 1) { scale = 1; currentX = 0; currentY = 0; }
+                    img.style.transform = `translate(${currentX}px, ${currentY}px) scale(${scale})`;
+                }
+                
+                function updateOpacity() {
+                    if (windowNode) windowNode.style.backgroundColor = `rgba(0,0,0,${opacity})`;
+                    if (headerNode) headerNode.style.opacity = opacity;
+                    if (footerNode) footerNode.style.opacity = opacity;
+                }
+
+                function setUiVisible(visible) {
+                    uiVisible = visible;
+                    if (headerNode) headerNode.classList.toggle('pv-ui-hidden', !visible);
+                    if (footerNode) footerNode.classList.toggle('pv-ui-hidden', !visible);
+                }
+
+                function resetPosition(animated = true) {
+                    if (animated) img.style.transition = 'transform 0.2s cubic-bezier(0.25, 1, 0.5, 1)';
+                    currentX = 0;
+                    currentY = 0;
+                    opacity = 1;
+                    updateTransform();
+                    if (windowNode) windowNode.style.transition = 'background-color 0.2s';
+                    if (headerNode) headerNode.style.transition = '';
+                    if (footerNode) footerNode.style.transition = '';
+                    updateOpacity();
+                }
+
+                container.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        startDistance = getDistance(e.touches);
+                        lastScale = scale;
+                        swipeAxis = null;
+                        img.style.transition = 'none';
+                        const mid = getMidpoint(e.touches);
+                        pinchMidX = mid.x;
+                        pinchMidY = mid.y;
+                        pinchStartX = currentX;
+                        pinchStartY = currentY;
+                    } else if (e.touches.length === 1) {
+                        const currentTime = new Date().getTime();
+                        const tapLength = currentTime - lastTap;
+                        
+                        if (tapLength < 300 && tapLength > 0) {
+                            clearTimeout(singleTapTimer);
+                            singleTapTimer = null;
+                            e.preventDefault();
+                            if (scale > 1) {
+                                scale = 1;
+                                currentX = 0;
+                                currentY = 0;
+                            } else {
+                                const containerRect = container.getBoundingClientRect();
+                                const tapX = e.touches[0].clientX - containerRect.left - containerRect.width / 2;
+                                const tapY = e.touches[0].clientY - containerRect.top - containerRect.height / 2;
+                                scale = 2;
+                                currentX = -tapX * (scale - 1) / scale;
+                                currentY = -tapY * (scale - 1) / scale;
+                                clampPan();
+                            }
+                            img.style.transition = 'transform 0.2s cubic-bezier(0.25, 1, 0.5, 1)';
+                            updateTransform();
+                            lastTap = 0;
+                        } else {
+                            img.style.transition = 'none';
+                            startTouchX = e.touches[0].clientX;
+                            startTouchY = e.touches[0].clientY;
+                            initialX = e.touches[0].clientX - currentX;
+                            initialY = e.touches[0].clientY - currentY;
+                            swipeAxis = null;
+                            if (windowNode) windowNode.style.transition = 'none';
+                            lastTap = currentTime;
+                        }
+                    }
+                }, { passive: false });
+
+                container.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const currentDistance = getDistance(e.touches);
+                        const newScale = Math.min(MAX_SCALE, Math.max(1, lastScale * (currentDistance / startDistance)));
+                        const scaleDelta = newScale / scale;
+
+                        const containerRect = container.getBoundingClientRect();
+                        const originX = pinchMidX - containerRect.left - containerRect.width / 2;
+                        const originY = pinchMidY - containerRect.top - containerRect.height / 2;
+                        const curMid = getMidpoint(e.touches);
+
+                        currentX = pinchStartX + (originX - pinchStartX) * (1 - scaleDelta) + (curMid.x - pinchMidX);
+                        currentY = pinchStartY + (originY - pinchStartY) * (1 - scaleDelta) + (curMid.y - pinchMidY);
+
+                        scale = newScale;
+                        clampPan();
+                        updateTransform();
+                    } else if (e.touches.length === 1) {
+                        if (scale > 1) {
+                            e.preventDefault();
+                            currentX = e.touches[0].clientX - initialX;
+                            currentY = e.touches[0].clientY - initialY;
+                            clampPan();
+                            updateTransform();
+                            swipeAxis = null;
+                        } else if (scale === 1) {
+                            const dx = e.touches[0].clientX - startTouchX;
+                            const dy = e.touches[0].clientY - startTouchY;
+
+                            if (!swipeAxis && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+                                swipeAxis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+                            }
+
+                            e.preventDefault();
+                            if (swipeAxis === 'x') {
+                                currentX = e.touches[0].clientX - initialX;
+                                currentY = 0;
+                                updateTransform();
+                            } else {
+                                currentX = 0;
+                                currentY = e.touches[0].clientY - initialY;
+                                updateTransform();
+                                opacity = 1 - Math.min(Math.abs(currentY) / 300, 1);
+                                updateOpacity();
+                            }
+                        }
+                    }
+                }, { passive: false });
+
+                container.addEventListener('touchend', (e) => {
+                    if (e.touches.length === 0 && e.changedTouches.length === 1 && swipeAxis === null) {
+                        const dx = e.changedTouches[0].clientX - startTouchX;
+                        const dy = e.changedTouches[0].clientY - startTouchY;
+                        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+                            clearTimeout(singleTapTimer);
+                            singleTapTimer = setTimeout(() => {
+                                singleTapTimer = null;
+                                setUiVisible(!uiVisible);
+                            }, 300);
+                            swipeAxis = null;
+                            return;
+                        }
+                    }
+
+                    lastScale = scale;
+                    img.style.transition = 'transform 0.2s cubic-bezier(0.25, 1, 0.5, 1)';
+                    if (scale < 1) {
+                        scale = 1;
+                        currentX = 0;
+                        currentY = 0;
+                        updateTransform();
+                    } else if (scale === 1) {
+                        if (swipeAxis === 'x' && Math.abs(currentX) > 60 && imagesCount > 1) {
+                            const goNext = currentX < 0;
+                            const exitX = goNext ? -window.innerWidth : window.innerWidth;
+                            currentX = exitX;
+                            updateTransform();
+                            setTimeout(() => {
+                                img.style.transition = 'none';
+                                currentX = 0;
+                                currentY = 0;
+                                updateTransform();
+                                slidePhoto(goNext ? 1 : 0);
+                            }, 200);
+                        } else if (swipeAxis === 'y' && Math.abs(currentY) > 200) {
+                            const direction = currentY > 0 ? 1 : -1;
+                            currentY = currentY + direction * window.innerHeight;
+                            opacity = 0;
+                            updateTransform();
+                            
+                            if (windowNode) windowNode.style.transition = 'background-color 0.2s';
+                            if (headerNode) headerNode.style.transition = 'opacity 0.2s';
+                            if (footerNode) footerNode.style.transition = 'opacity 0.2s';
+                            updateOpacity();
+                            
+                            setTimeout(() => {
+                                msgbox.close();
+                            }, 200);
+                        } else {
+                            resetPosition(true);
+                        }
+                    }
+                    swipeAxis = null;
+                });
+            }
 
             initializeNavigation();
 
-            CF.setupKeyboardNav(msgbox, {
+            ModalUtils.setupKeyboardNav(msgbox, {
                 37: () => slidePhoto(0),
                 39: () => slidePhoto(1),
                 27: () => msgbox.close()
             });
 
-            CF.setupCleanup(msgbox, () => {
-                CF.unregisterModal(msgbox);
+            ModalUtils.setupCleanup(msgbox, () => {
+                ModalUtils.unregisterModal(msgbox);
                 clearPhotoUrl();
                 window.cleanupModalTooltips?.(msgbox.getNode().nodes[0]);
                 window._currentMediaModalRefresh = null;
             });
 
             async function loadPhotoInfoForPhoto(photoId) {
-                u('#pv_right_loader').html('');
-                LoaderUtils.show('#pv_right_loader', { size: 'medium' });
-
                 u('#pv_actions_loader').html('');
-                LoaderUtils.show('#pv_actions_loader', { theme: 'baw' });
 
-                const ownerId = parseInt(photoId.split('_')[0]);
-                const realId = parseInt(photoId.split('_')[1]);
-                const photoUrl = json?.body?.[photoId]?.url || photoOriginalUrl;
+                msgbox.getNode().find('.pv_bottom_actions').html('<div id="pv_bottom_actions_loader" style="height: 18px"></div>');
+                LoaderUtils.show('#pv_bottom_actions_loader', { theme: 'baw', size: 'small' });
 
-                const actionsHtml = buildPhotoActions(ownerId, photoId, realId, photoUrl);
-                msgbox.getNode().find('.pv_bottom_actions').html(actionsHtml);
+                const pvRightTarget = msgbox.getNode().find('.pv_right');
 
                 try {
-                    const body = await CF.fetchPageContent(`/photo${photoId}`, null, { ajaxQuery: false });
+                    await CF.loadInto(pvRightTarget, `/photo${photoId}`, null, {
+                        fetchOptions: { ajaxQuery: false, skipRedirectError: true },
+                        loaderOptions: { size: 'medium' },
+                        render(body) {
+                            const pvRight = body.querySelector('.pv_right');
+                            if (!pvRight) throw new Error('No content');
 
-                    const pvRight = body.querySelector('.pv_right');
-                    if (!pvRight) throw new Error('No content');
+                            msgbox.getNode().find('.ovk-photo-view-window').removeClass('private');
+                            pvRightTarget.html(pvRight.innerHTML);
 
-                    msgbox.getNode().find('.ovk-photo-view-window').removeClass('private');
-                    msgbox.getNode().find('.pv_right').html(pvRight.innerHTML);
+                            const pvAlbumName = body.querySelector('.pv_album_name');
+                            const pvAlbumContent = pvAlbumName ? pvAlbumName.innerHTML : '';
+                            msgbox.getNode().find('.pv_album_name').html(pvAlbumContent);
+                            msgbox.getNode().find('.pv_title_group').toggleClass('pv-no-album', !pvAlbumContent.trim());
 
-                    const pvAlbumName = body.querySelector('.pv_album_name');
-                    msgbox.getNode().find('.pv_album_name').html(pvAlbumName ? pvAlbumName.innerHTML : '');
+                            const pvActions = body.querySelector('.pv_bottom_actions');
+                            msgbox.getNode().find('.pv_bottom_actions').html(pvActions ? pvActions.innerHTML : '');
 
-                    msgbox.getNode().find(".pv_right .bsdn").nodes.forEach(bsdnInitElement);
+                            msgbox.getNode().find(".pv_right .bsdn").nodes.forEach(bsdnInitElement);
+
+                            if (window.isMobile && window.isMobile()) {
+                                const desc = msgbox.getNode().find('.pv_right .pv_desc').html();
+                                if (desc && desc.trim()) {
+                                    msgbox.getNode().find('.mobile-photo-footer .pv_desc').html(desc).attr('style', '');
+                                } else {
+                                    msgbox.getNode().find('.mobile-photo-footer .pv_desc').attr('style', 'display:none;');
+                                }
+
+                                const likes = msgbox.getNode().find('.pv_right .post_full_like_wrap').html();
+                                msgbox.getNode().find('.mobile-photo-actions').html(likes || '');
+
+                                let moreHtml = '';
+                                if (pvActions) {
+                                   const moreMenu = pvActions.querySelector('#pv_actions_more_menu');
+                                   const deleteBtn = pvActions.querySelector('#_photoDelete');
+                                   if (moreMenu) {
+                                       moreHtml += moreMenu.innerHTML;
+                                   }
+                                   if (deleteBtn) {
+                                       moreHtml += deleteBtn.outerHTML;
+                                   }
+                                }
+
+                                if (moreHtml) {
+                                    msgbox.getNode().find('.pv_actions_more_wrap').html(`
+                                        <div class="pv_actions_more mobile-three-dots" role="button" data-tippy-content-id="pv_actions_more_menu_mobile" data-tippy-theme="dark vk" style="display:flex; align-items:center;">
+                                            <svg width="28" height="28" viewBox="0 0 28 28"><use href="#more-vertical-28"></use></svg>
+                                        </div>
+                                        <div id="pv_actions_more_menu_mobile" class="tippy-menu tippy-content-template">
+                                            ${moreHtml}
+                                        </div>
+                                    `).attr('style', 'display:block; cursor:pointer;');
+                                } else {
+                                    msgbox.getNode().find('.pv_actions_more_wrap').html('').attr('style', 'display:none;');
+                                }
+
+                                msgbox.getNode().find('#__mobile_photo_comment_btn').attr('href', `/photo${photoId}`);
+                            }
+                        },
+                        onError() {
+                            msgbox.getNode().find('.ovk-photo-view-window').addClass('private');
+                            pvRightTarget.html('');
+                            msgbox.getNode().find('.pv_album_name').html('');
+                            msgbox.getNode().find('.pv_title_group').addClass('pv-no-album');
+                            if (window.isMobile && window.isMobile()) {
+                                 msgbox.getNode().find('.mobile-photo-footer .pv_desc').attr('style', 'display:none;');
+                                 msgbox.getNode().find('.mobile-photo-actions').html('');
+                                 msgbox.getNode().find('.pv_actions_more_wrap').html('').attr('style', 'display:none;');
+                            }
+                        }
+                    });
                 } catch (e) {
-                    msgbox.getNode().find('.ovk-photo-view-window').addClass('private');
-                    msgbox.getNode().find('.pv_right').html('');
-                    msgbox.getNode().find('.pv_album_name').html('');
+                    // Already handled via onError above.
                 }
 
                 setTimeout(window.reinitializeTooltips, 200);
@@ -705,7 +951,7 @@ vkify.once('mediaModals', function () {
             loadPhotoInfo();
             updatePhotoUrl(pretty_id, currentAlbumId);
 
-            CF.setupDimmerClose(msgbox);
+            ModalUtils.setupDimmerClose(msgbox);
         } catch (err) {
             console.error(err);
         }
@@ -731,13 +977,28 @@ vkify.once('mediaModals', function () {
 
             const decoded = decodeURIComponent(zParam);
 
-            const photoMatch = decoded.match(/^photo(-?\d+)_(\d+)(?:\/album(-?\d+)_(\d+))?$/i);
+            const photoMatch = decoded.match(/^photo(-?\d+)_(\d+)(?:\/(album|wall|comment)(-?\d+(?:_\d+)?))?$/i);
             if (photoMatch) {
-                return {
+                const result = {
                     type: 'photo',
                     photoId: `${photoMatch[1]}_${photoMatch[2]}`,
-                    albumId: photoMatch[3] && photoMatch[4] ? `${photoMatch[3]}_${photoMatch[4]}` : null
+                    contextType: null,
+                    contextId: null
                 };
+
+                if (photoMatch[3]) {
+                    const context = photoMatch[3].toLowerCase();
+                    if (context === 'album') {
+                        result.contextType = 'album';
+                    } else if (context === 'comment') {
+                        result.contextType = 'comment';
+                    } else {
+                        result.contextType = 'post';
+                    }
+                    result.contextId = photoMatch[4];
+                }
+
+                return result;
             }
 
             const videoMatch = decoded.match(/^video(-?\d+)_(\d+)$/i);
@@ -782,9 +1043,9 @@ vkify.once('mediaModals', function () {
 
                 const photo = photoApi[0];
                 const photoUrl = photo.src_xbig || photo.src_big || photo.src;
-                const type = data.albumId ? 'album' : 'photo';
+                const type = data.contextType || 'photo';
 
-                await window.OpenMiniature(null, photoUrl, null, data.photoId, type, true);
+                await window.OpenMiniature(null, photoUrl, data.contextId, data.photoId, type, true);
             } catch (err) {
                 clearZParam();
             }
@@ -807,23 +1068,30 @@ vkify.once('mediaModals', function () {
         constructor() {
             this.currentModal = null;
             this.originalUrl = null;
-            this.modalPaginationObserver = null;
+            this._commentsScroller = null;
             this.setupEventListeners();
             this.checkInitialUrl();
         }
 
         setupEventListeners() {
-            u(document).on('click', '.scroll_container .post_link, .scroll_container .wall_text a[href^="/wall"]', (e) => {
-                const link = u(e.target).closest('.post_link, .wall_text a[href^="/wall"]');
-                const href = link.attr('href');
+            document.addEventListener('click', (e) => {
+                const link = e.target.closest('.scroll_container .post_link, .scroll_container .wall_text a[href^="/wall"]');
+                if (!link) return;
 
-                if (href && href.match(/^\/wall-?\d+_\d+$/)) {
-                    e.preventDefault();
-                    this.openPostPopup(href);
+                const href = link.getAttribute('href');
+                if (!href || !href.match(/^\/wall-?\d+_\d+$/)) return;
+
+                if (window.isMobile && window.isMobile()) {
+                    return;
                 }
-            });
+
+                e.preventDefault();
+                this.openPostPopup(href);
+            }, true);
 
             window.addEventListener('popstate', () => {
+                if (window.isMobile && window.isMobile()) return;
+
                 const wallParam = CF.getUrlParam('w');
                 const sortParam = CF.getUrlParam('sort');
                 const pageParam = CF.getUrlParam('p');
@@ -839,12 +1107,17 @@ vkify.once('mediaModals', function () {
 
         checkInitialUrl() {
             const wallParam = CF.getUrlParam('w');
+            if (!wallParam || !wallParam.startsWith('wall')) return;
+
+            const postPath = '/' + wallParam;
+            if (window.isMobile && window.isMobile()) {
+                window.router.route(postPath);
+                return;
+            }
+
             const sortParam = CF.getUrlParam('sort');
             const pageParam = CF.getUrlParam('p');
-            if (wallParam && wallParam.startsWith('wall')) {
-                const postPath = '/' + wallParam;
-                this.openPostPopup(postPath, false, sortParam, pageParam);
-            }
+            this.openPostPopup(postPath, false, sortParam, pageParam);
         }
 
         async openPostPopup(postPath, updateUrl = true, sortParam = null, pageParam = null) {
@@ -863,17 +1136,13 @@ vkify.once('mediaModals', function () {
                     CF.updateMultipleUrlParams(params, { state: { postPopup: postPath } });
                 }
 
-                loader.show();
-
                 const fetchUrl = new URL(postPath, location.origin);
                 if (sortParam) fetchUrl.searchParams.set('sort', sortParam);
                 if (pageParam) fetchUrl.searchParams.set('p', pageParam);
 
-                const postContent = await CF.fetchPageContent(fetchUrl.toString(), '.wide_column');
+                const postContent = await CF.fetchPageContent(fetchUrl.toString(), '.wide_column', { showLoader: true });
 
-                loader.hide();
-
-                this.currentModal = CF.createModal({
+                this.currentModal = ModalUtils.createModal({
                     type: 'post',
                     title: tr('post'),
                     content: `<div class="post-popup-content">${postContent.innerHTML}</div>`,
@@ -889,12 +1158,12 @@ vkify.once('mediaModals', function () {
                     this.handleModalClosed();
                 };
 
-                CF.setupCleanup(this.currentModal, () => {
-                    CF.unregisterModal(this.currentModal);
+                ModalUtils.setupCleanup(this.currentModal, () => {
+                    ModalUtils.unregisterModal(this.currentModal);
                 });
-                CF.setupCloseButton(this.currentModal, '#__modalPlayerClose');
-                CF.setupDimmerClose(this.currentModal, '.ovk-photo-view-dimmer');
-                CF.setupKeyboardNav(this.currentModal, {
+                ModalUtils.setupCloseButton(this.currentModal, '#__modalPlayerClose');
+                ModalUtils.setupDimmerClose(this.currentModal, '.ovk-photo-view-dimmer');
+                ModalUtils.setupKeyboardNav(this.currentModal, {
                     27: () => this.closePostPopup()
                 });
                 modalNode.on('click', '#__modalPlayerClose', () => {
@@ -923,15 +1192,16 @@ vkify.once('mediaModals', function () {
                         const pageParam = urlParams.get('p');
                         const sortParam = urlParams.get('sort');
 
-                        if (pageParam) {
-                            this.appendModalComments(postPath, pageParam, sortParam);
+                        if (pageParam && this._commentsScroller) {
+                            this._commentsScroller.reset(Number(pageParam));
+                            this._commentsScroller.loadNext();
                         }
                     }
                 });
 
                 window.processVkifyLocTags();
 
-                this.setupModalPaginationObserver(postPath, sortParam);
+                this._setupCommentsScroller(postPath, sortParam);
 
             } catch (error) {
                 console.error('Failed to load post:', error);
@@ -939,16 +1209,16 @@ vkify.once('mediaModals', function () {
                 if (this.currentModal) {
                     this.closePostPopup(false);
                 }
-                if (updateUrl) {
+                if (updateUrl && error.message !== 'Page redirected') {
                     location.href = postPath;
                 }
             }
         }
 
         handleModalClosed() {
-            if (this.modalPaginationObserver) {
-                this.modalPaginationObserver.disconnect();
-                this.modalPaginationObserver = null;
+            if (this._commentsScroller) {
+                this._commentsScroller.disconnect();
+                this._commentsScroller = null;
             }
 
             this.currentModal = null;
@@ -973,7 +1243,9 @@ vkify.once('mediaModals', function () {
                 const fetchUrl = new URL(postPath, location.origin);
                 fetchUrl.searchParams.set('sort', sortParam);
 
-                const content = await CF.injectContent(
+                this._commentsScroller?.disconnect();
+
+                const content = await ModalUtils.injectContent(
                     this.currentModal,
                     '.page_block.comments',
                     fetchUrl.toString(),
@@ -991,7 +1263,7 @@ vkify.once('mediaModals', function () {
 
                 window.processVkifyLocTags();
 
-                this.setupModalPaginationObserver(postPath, sortParam);
+                this._setupCommentsScroller(postPath, sortParam);
 
             } catch (error) {
                 console.error('Failed to refresh post with sort:', error);
@@ -1005,118 +1277,90 @@ vkify.once('mediaModals', function () {
             }
         }
 
-        async appendModalComments(postPath, pageParam, sortParam = null) {
-            if (!this.currentModal) return;
+        async appendCommentsPage(postPath, pageParam, sortParam = null, signal = null) {
+            if (!this.currentModal) return null;
 
-            try {
-                const modalNode = this.currentModal.getNode();
-                const scrollContainer = modalNode.find('.scroll_container');
-                if (scrollContainer.length === 0) {
-                    console.warn('Scroll container not found in modal');
-                    return;
-                }
-
-                const fetchUrl = new URL(postPath, location.origin);
-                fetchUrl.searchParams.set('p', pageParam);
-                if (sortParam) fetchUrl.searchParams.set('sort', sortParam);
-
-                const doc = await CF.fetchPageContent(fetchUrl.toString(), null);
-
-                const newComments = doc.querySelectorAll('.scroll_container .post.reply');
-                newComments.forEach(commentNode => {
-                    const commentId = commentNode.getAttribute('data-comment-id');
-                    if (commentId) {
-
-                        const existingComment = modalNode.find(`[data-comment-id='${commentId}']`);
-                        if (existingComment.length > 0) {
-                            console.info('AJAX | Found duplicate comment, skipping');
-                            return;
-                        }
-                    }
-
-                    scrollContainer.nodes[0].appendChild(commentNode);
-                });
-
-                const modalPaginator = modalNode.find('.vkify-paginator:not(.vkify-paginator-at-top)');
-                const newPaginator = doc.querySelector('.vkify-paginator:not(.vkify-paginator-at-top)');
-                if (modalPaginator.length > 0 && newPaginator) {
-                    modalPaginator.html(newPaginator.innerHTML);
-
-                    if (modalPaginator.nodes[0].closest('.scroll_container')) {
-                        scrollContainer.nodes[0].appendChild(modalPaginator.nodes[0].parentNode);
-                    }
-                }
-
-                const params = { p: pageParam };
-                if (sortParam) params.sort = sortParam;
-                CF.updateMultipleUrlParams(params, { replace: true, state: { postPopup: postPath } });
-
-                window.processVkifyLocTags();
-
-            } catch (error) {
-                console.error('Failed to append comments:', error);
-
+            const modalNode = this.currentModal.getNode();
+            const scrollContainer = modalNode.find('.scroll_container');
+            if (scrollContainer.length === 0) {
+                console.warn('Scroll container not found in modal');
+                return null;
             }
+
+            const fetchUrl = new URL(postPath, location.origin);
+            fetchUrl.searchParams.set('p', pageParam);
+            if (sortParam) fetchUrl.searchParams.set('sort', sortParam);
+
+            const doc = await CF.fetchPageContent(fetchUrl.toString(), null, { signal });
+
+            const newComments = doc.querySelectorAll('.scroll_container .post.reply');
+            newComments.forEach(commentNode => {
+                const commentId = commentNode.getAttribute('data-comment-id');
+                if (commentId) {
+                    const existingComment = modalNode.find(`[data-comment-id='${commentId}']`);
+                    if (existingComment.length > 0) {
+                        console.info('AJAX | Found duplicate comment, skipping');
+                        return;
+                    }
+                }
+
+                scrollContainer.nodes[0].appendChild(commentNode);
+            });
+
+            const modalPaginator = modalNode.find('.vkify-paginator:not(.vkify-paginator-at-top)');
+            const newPaginator = doc.querySelector('.vkify-paginator:not(.vkify-paginator-at-top)');
+            if (modalPaginator.length > 0 && newPaginator) {
+                modalPaginator.html(newPaginator.innerHTML);
+
+                if (modalPaginator.nodes[0].closest('.scroll_container')) {
+                    scrollContainer.nodes[0].appendChild(modalPaginator.nodes[0].parentNode);
+                }
+            }
+
+            const params = { p: pageParam };
+            if (sortParam) params.sort = sortParam;
+            CF.updateMultipleUrlParams(params, { replace: true, state: { postPopup: postPath } });
+
+            window.processVkifyLocTags();
+
+            return doc;
         }
 
-        setupModalPaginationObserver(postPath, sortParam = null) {
+        _setupCommentsScroller(postPath, sortParam = null) {
             if (!this.currentModal) return;
 
             const modalNode = this.currentModal.getNode();
             const paginator = modalNode.find('.vkify-paginator:not(.vkify-paginator-at-top)');
             if (paginator.length === 0) return;
 
-            if (this.modalPaginationObserver) {
-                this.modalPaginationObserver.disconnect();
+            if (this._commentsScroller) {
+                this._commentsScroller.disconnect();
             }
 
-            this.modalPaginationObserver = new IntersectionObserver(entries => {
-                entries.forEach(async x => {
-                    if (x.isIntersecting) {
+            const activeTab = paginator.find('.active');
+            const nextPage = u(activeTab.nodes[0] ? activeTab.nodes[0].nextElementSibling : null);
+            if (nextPage.length === 0) return;
 
-                        if (Number(localStorage.getItem('ux.auto_scroll') ?? 1) == 0) {
-                            return;
-                        }
+            let startPage = 2;
+            const nextNum = Number(nextPage.html());
+            if (!Number.isNaN(nextNum)) {
+                startPage = nextNum;
+            } else {
+                const activeNum = Number(activeTab.html());
+                if (!Number.isNaN(activeNum)) startPage = activeNum + 1;
+            }
 
-                        const target = u(x.target);
-                        if (target.length < 1 || target.hasClass('vkify-paginator-at-top')) {
-                            return;
-                        }
-                        if (target.hasClass('lagged')) {
-                            return;
-                        }
-
-                        const modalScrollContainer = target.closest('.post_popup_modal').find('.scroll_container');
-                        if (modalScrollContainer.length < 1) {
-                            return;
-                        }
-
-                        target.addClass('lagged');
-                        const activeTab = target.find('.active');
-                        const nextPage = u(activeTab.nodes[0] ? activeTab.nodes[0].nextElementSibling : null);
-                        if (nextPage.length < 1) {
-                            target.removeClass('lagged');
-                            return;
-                        }
-
-                        const pageNumber = Number(nextPage.html());
-
-                        try {
-                            await this.appendModalComments(postPath, pageNumber, sortParam);
-                        } catch (e) {
-                            console.error(e);
-                        }
-
-                        target.removeClass('lagged');
-                    }
-                });
-            }, {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0,
+            this._commentsScroller = CF.infiniteScroll('.vkify-paginator:not(.vkify-paginator-at-top)', {
+                container: modalNode,
+                page: startPage,
+                clickToLoad: false,
+                load: async (page, signal) => {
+                    return await this.appendCommentsPage(postPath, page, sortParam, signal);
+                },
+                render: () => {},
+                hasMore: (doc) => !!doc && !!doc.querySelector('.vkify-paginator:not(.vkify-paginator-at-top)'),
+                onError: (err) => console.error('Failed to append comments:', err)
             });
-
-            this.modalPaginationObserver.observe(paginator.nodes[0]);
         }
 
         closePostPopup(updateUrl = true) {

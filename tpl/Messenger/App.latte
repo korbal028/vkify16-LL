@@ -37,7 +37,7 @@
                                             {_bl_remove}
                                         </a>
                                     {else}
-                                        <a id="_bl_toggler" data-name="{$correspondent->getMorphedName('genitive', false)}" data-val="1" data-id="{$correspondent->getRealId()}">
+                                        <a id="_bl_toggler" data-name="{$correspondent->getMorphedName('genitive', false, false)}" data-val="1" data-id="{$correspondent->getRealId()}">
                                             {_bl_add}
                                         </a>
                                     {/if}
@@ -47,7 +47,7 @@
                                 </div>
                             </div>
                             <a href="{$correspondent->getURL()}" class="messenger-app--header--ava">
-                                <img class="post-avatar" src="{if str_contains($correspondent->getAvatarUrl('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$correspondent->getAvatarUrl('miniscule')}{/if}" alt="{$correspondent->getCanonicalName()}" />
+                                {include '../components/avatar.latte', author => $correspondent, size => 'miniscule', alt => $correspondent->getCanonicalName(), class => 'post-avatar'}
                                 <div n:if="5 >= $diff->i" class="messenger-app--header--online"></div>
                             </a>
                         </div>
@@ -76,14 +76,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="messenger-app--typing-status" style="display:none;opacity:0;">
+                            <div class="pr pr_gray"><div class="pr_bt"></div><div class="pr_bt"></div><div class="pr_bt"></div></div>
+                            {tr('message_user_typing', $correspondent->getFirstName())}
+                        </div>
                     </div>
                     <div class="messenger-app--input">
                         {if $correspondent->getId() === $thisUser->getId() || $correspondent->getPrivacyPermission('messages.write', $thisUser)}
-                            {if str_contains($thisUser->getAvatarUrl('miniscule'), 'camera_200.png')}
-                                <img class="ava" src="/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png" alt="{$thisUser->getCanonicalName()}" />
-                            {else}
-                                <img class="ava" src="{$thisUser->getAvatarUrl('miniscule')}" alt="{$thisUser->getCanonicalName()}" />
-                            {/if}
+                            {include '../components/avatar.latte', author => $thisUser, size => 'miniscule', alt => $thisUser->getCanonicalName(), class => 'ava'}
                             <div class="messenger-app--input---messagebox">
                                 <textarea
                                         data-bind="value: messageContent, event: { keydown: onTextareaKeyPress }"
@@ -141,7 +141,10 @@
             constructor(messages = []) {
                 this.ko     = ko.applyBindings(new MessengerViewModel(messages));
                 this.appEl  = document.querySelector(".messenger-app--messages");
+                this.typeEl = document.querySelector(".messenger-app--typing-status");
                 this.offset = 0;
+                
+                this.typingTimer = null;
                 
                 this._loadHistory();
                 this._setupListener();
@@ -168,15 +171,22 @@
                         let data = JSON.parse(xhr.responseText);
                         data.forEach(event => {
                             event = event.event;
-                            if(event.type !== "newMessage")
-                                return;
-                            else if(event.message.sender.id !== {$correspondent->getId()})
-                                return;
-                            else if(this.offset >= event.message.uuid)
+                            if(this.offset >= event.message.uuid)
                                 return void(console.warn("Gay message recieved, skipping. [-WHeterosexual]"));
                             
-                            this.addMessage(event.message);
-                            this.offset = event.message.uuid;
+                            switch (event.type) {
+                                case "newMessage":
+                                    if(event.message.sender.id === {$correspondent->getId()}) {
+                                        this.addMessage(event.message);
+                                        this.offset = event.message.uuid;
+                                    }
+                                    break;
+                                case "typing":
+                                    if(event.message === {$correspondent->getId()}) {
+                                        this.setTypingStatus();
+                                    }
+                                    break;
+                            }
                         });
                         
                         listenLongpool();
@@ -201,6 +211,19 @@
                 if(scroll) {
                     this.appEl.scrollTop = this.appEl.scrollHeight;
                 }
+            }
+            
+            setTypingStatus() {
+                if (this.typeEl.style.display == "block" && this.typeTimer !== null) {
+                    clearTimeout(this.typeTimer);
+                }
+                this.typeEl.style.opacity = 1;
+                this.typeEl.style.display = "block";
+                this.typeTimer = setTimeout(() => {
+                    setTimeout(() => { this.typeEl.style.display = "none" }, 250);
+                    this.typeEl.style.opacity = 0;
+                    this.typeTimer = null;
+                }, 6000);
             }
             
             _patchMessage(tempId, message) {

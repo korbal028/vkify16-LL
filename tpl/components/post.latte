@@ -30,30 +30,21 @@
 {var $scrollNode = $scrollNode ?? true}
 
 {var $commentTextAreaId = $post === NULL ? rand(1,300) : $post->getId()}
-{var $bigText = mb_strlen($post->getText()) > 520 || substr_count($post->getText(), "\n") + 1 > 10}
+{var $threshold = $compact ? 520 : 1500}
+{var $lineThreshold = $compact ? 10 : 15}
 
-<div data-id="{$post->getPrettyId()}" n:class="post, $post->isExplicit() ? post-nsfw, $compact ? copy_quote, !$compact ? page_block, !$compact && $scrollNode ? scroll_node">
+<div data-id="{$post->getPrettyId()}" n:attr="data-uniqueid => (!$compact && $scrollNode) ? $post->getPrettyId() : null" n:class="post, ($post->isExplicit() && (!isset($thisUser) || $thisUser->getNsfwTolerance() < 2)) ? post-nsfw, $compact ? copy_quote, !$compact ? page_block, !$compact && $scrollNode ? scroll_node">
     <div class="post_header">
         <a class="post_image{if !$post->isPostedOnBehalfOfGroup() && $author->isOnline()} online{/if}{if in_array($onlinePlatform, ['android', 'iphone', 'mobile'])} mobile{/if}" href="{$author->getURL()}">
-            {if $author instanceof \openvk\Web\Models\Entities\Club}
-                <img src="{str_contains($author->getAvatarUrl('miniscule'), 'camera_200.png') 
-                    ? '/themepack/vkify16/'.$theme->getVersion().'/resource/community_200.png' : $author->getAvatarUrl('miniscule')}" 
-                    width="50" 
-                    class="post-avatar" />
-            {else}
-                <img src="{str_contains($author->getAvatarUrl('miniscule'), 'camera_200.png') 
-                    ? '/themepack/vkify16/'.$theme->getVersion().'/resource/camera_200.png' : $author->getAvatarUrl('miniscule')}" 
-                    width="50" 
-                    class="post-avatar" />
-            {/if}
+            {include 'avatar.latte', author => $author, size => 'miniscule', width => 50, class => 'post-avatar'}
         </a>
         <div class="post_header_info">
             <div class="post_author">
                 <a class="author" href="{$author->getURL()}">
                     {$author->getCanonicalName()}
                 </a>
-                <a class="page_verified" n:if="$author->isVerified()" href="verify"></a>
-                <span class="explain">
+                <a class="page_verified" n:if="$author->isVerified()" href="/verify"></a>
+                <span class="explain" n:ifcontent>
                     {$post->isDeactivationMessage() ? 
                         ($author->isFemale() ? tr($deac . "_f") : 
                         ($author->isNeutral() ? tr($deac . "_g") : tr($deac . "_m"))) : ''}
@@ -68,11 +59,12 @@
                             {elseif $wallOwner instanceof \openvk\Web\Models\Entities\Club}
                                 {tr("post_on_group_wall", ovk_proc_strtr($wallOwner->getName(), 52))}
                             {else}
-                                {tr("post_on_user_wall", $wallOwner->getMorphedName("genitive", false))}
+                                {tr("post_on_user_wall", $wallOwner->getMorphedName("genitive", false, false))}
                             {/if}
                         </a>
                     {/if}
                     <span n:if="$post->isPinned()" class="wall_fixed_label">{_pinned}</span>
+                    <span n:if="$post->canBeEditedBy($thisUser)" class="wall_edit_label"><span class="divider"></span>{_logs_editing|lower}</span>
                 </span>
             </div>
             <div class="post_date">
@@ -117,16 +109,7 @@
     </div>
     <div class="post-content" id="{$post->getPrettyId()}" data-localized-nsfw-text="{_nsfw_warning}">
         <div class="text wall_text" id="text{$post->getPrettyId()}">
-            <div data-text="{$post->getText(false)}" n:if="$post->getText(false)" class="really_text wall_post_text">
-                {var $plainText = $post->getText($html = false)}
-                {if $bigText}
-                    <span class="truncated_text">{$plainText|truncate:500}</span>
-                    <span class="full_text hidden">{$post->getText()|noescape}</span>
-                    <a href="javascript:void(0)" class="collapse_button" onclick="javascript:expandText(this)">{_show_more}</a>
-                {else}
-                    {$post->getText()|noescape}
-                {/if}
-            </div>
+            {include "truncated_text.latte", html => $post->getText(), plain => $post->getText(false), limit => $threshold, lineLimit => $lineThreshold, textClass => 'wall_post_text'}
 
             {var $attachmentsCount = iterator_count($post->getChildren())}
             {var $width = $attachmentsCount > 1 ? 514 : 510}
@@ -142,7 +125,7 @@
                 <div class="attachment" n:foreach="$attachmentsLayout->extras as $attachment" n:if="!($attachment instanceof \openvk\Web\Models\Entities\Audio)">
                     {include "attachment.latte", attachment => $attachment, post => $post}
                 </div>
-                <div class="attachment" n:foreach="$attachmentsLayout->extras as $attachment" n:if="$attachment instanceof \openvk\Web\Models\Entities\Audio">
+                <div class="attachment audios_attachment" n:foreach="$attachmentsLayout->extras as $attachment" n:if="$attachment instanceof \openvk\Web\Models\Entities\Audio">
                     {include "attachment.latte", attachment => $attachment, post => $post}
                 </div>
             </div>
@@ -204,7 +187,7 @@
         </div>
     </div>
     <div n:if="!($forceNoCommentsLink ?? false) && $commentSection == true && $compact == false" id="commentTextArea{$commentTextAreaId}" n:class="post-menu-s, ($commentsCount == 0 ? 'hidden')">
-        <a n:if="$commentsCount > 3" href="wall{$post->getPrettyId()}" class="button button_wide button_gray expand_button post_link">{_view_other_comments}</a>
+        <a n:if="$commentsCount > 3" href="/wall{$post->getPrettyId()}#replies" class="button button_wide button_gray expand_button post_link">{_view_other_comments}</a>
         <div n:ifcontent class="comments">
             {foreach $comments as $comment}
                 {include "comment.latte", comment => $comment, $compact => true}

@@ -366,6 +366,7 @@ function patchPlayerInitEventsOnce() {
         if (!this.__vkifySeekResetBound && typeof this.setTrack === 'function') {
             this.__vkifySeekResetBound = true;
             vkify.hook(this, 'setTrack', function() {
+                ensurePlayerContext(this);
                 try {
                     if (this.audioPlayer) this.audioPlayer.currentTime = 0;
                 } catch (e) {
@@ -520,6 +521,7 @@ function initTopPlayerOnce() {
     window.__vkifyMusicPopupTryWrapUpdateFace = tryWrapUpdateFace;
 }
 
+
 let friendsHtmlCache = null;
 let friendsHtmlPromise = null;
 
@@ -629,6 +631,12 @@ async function initMusicPopupTippyOnce() {
         <div class="repeatButton musicIcon" data-tip="simple-black" data-align="bottom-end" data-tiptitle="${tr('repeat_tip')}"></div>
         <div class="shuffleButton musicIcon" data-tip="simple-black" data-align="bottom-end" data-tiptitle="${tr('shuffle_tip')}"></div>
         <div class="deviceButton musicIcon" data-tip="simple-black" data-align="bottom-end" data-tiptitle="${tr('mute_tip')}"></div>
+        <form name="status_popup_form" style="display: none !important;">
+            <input type="text" name="status" size="50" value="${escapeHtml(window.openvk?.status || '')}">
+            <input type="checkbox" name="broadcast" ${window.openvk?.broadcast_music ? 'checked' : ''}>
+            <input type="hidden" name="hash" value="${vkify.getCsrf()}">
+        </form>
+        <div class="statusButton musicIcon${window.openvk?.broadcast_music ? ' pressed' : ''}" data-tip="simple-black" data-align="bottom-end" data-tiptitle="${tr('broadcast_audio')}"></div>
     </div>
 </div>
 </div>
@@ -654,7 +662,7 @@ async function initMusicPopupTippyOnce() {
             <a class="ui_rmenu_item" onclick="tippy.hideAll();" href="/search?section=audios&order=listens" id="ki">${tr('audio_popular')}</a>
             <div class="ui_rmenu_sep"></div>
             <a class="ui_rmenu_item" onclick="tippy.hideAll();" href="/playlists${window.openvk?.current_id}" id="ki">${tr('my_playlists')}</a>
-            <a class="ui_rmenu_item" onclick="tippy.hideAll();" href="/audios/newPlaylist">${tr('new_playlist')}</a>
+            <a class="ui_rmenu_item" onclick="tippy.hideAll(); return showNewPlaylistModal(event);" href="/audios/newPlaylist">${tr('new_playlist')}</a>
             <div class="ui_rmenu_sep"></div>
         </div>
         <div class="friends_audio_list">${friendsHtml}</div>
@@ -671,6 +679,7 @@ async function initMusicPopupTippyOnce() {
         placement: 'bottom-start',
         theme: 'musicpopup',
         arrow: false,
+        zIndex: 99,
         getReferenceClientRect: () => {
             const searchBox = document.querySelector('.home_search');
             if (!searchBox) {
@@ -757,10 +766,23 @@ async function initMusicPopupTippyOnce() {
             if (typeof window.__vkifyMusicPopupUpdateTopPlayer === 'function') {
                 window.__vkifyMusicPopupUpdateTopPlayer();
             }
+            if (typeof window.__vkifyMusicPopupUpdateSidebarPlayer === 'function') {
+                window.__vkifyMusicPopupUpdateSidebarPlayer();
+            }
         }
     });
 
     anchor.__vkifyBindingTippy = false;
+}
+
+function defaultPlayerContext() {
+    return { object: null, pagesCount: 0, count: 0, playedPages: [] };
+}
+
+function ensurePlayerContext(player) {
+    if (!player?.context) {
+        player.context = defaultPlayerContext();
+    }
 }
 
 function patchPlayerContextCheckOnce() {
@@ -772,6 +794,19 @@ function patchPlayerContextCheckOnce() {
         if (!this.context?.object?.url) return false;
         return original.call(this);
     };
+
+    window.player.hasContext = function() {
+        ensurePlayerContext(this);
+        return Boolean(this.context.object?.url);
+    };
+
+    if (typeof window.player.loadDump === 'function') {
+        vkify.hook(window.player, 'loadDump', function(dump_object) {
+            if (!dump_object?.context) {
+                dump_object.context = defaultPlayerContext();
+            }
+        }, 'before');
+    }
 }
 
 function bindAjCloseOnce() {
@@ -806,10 +841,11 @@ function bindSliderTipPositionFixOnce() {
         '.audioEntry .subTracks .volumeTrack .selectableTrack',
         '#aj_player_volume .selectableTrack'
     ];
+    const seekSelectorStr = seekSelectors.join(', ');
+    const volumeSelectorStr = volumeSelectors.join(', ');
+    const combinedSelectorStr = `${seekSelectorStr}, ${volumeSelectorStr}`;
 
-    const handleSeekTooltip = e => {
-        const track = e.target?.closest?.(seekSelectors.join(', '));
-        if (!track) return;
+    const handleSeekTooltip = (e, track) => {
         if (!window.player?.currentTrack) return;
         if (window.player.isAtAudiosPage?.() && window.player.current_track_id === 0) return;
         if (document.querySelector('.ui-draggable-dragging')) return;
@@ -844,9 +880,7 @@ function bindSliderTipPositionFixOnce() {
         tip.style.left = `${left}px`;
     };
 
-    const handleVolumeTooltip = e => {
-        const track = e.target?.closest?.(volumeSelectors.join(', '));
-        if (!track) return;
+    const handleVolumeTooltip = (e, track) => {
         if (window.player?.isAtAudiosPage?.() && window.player.current_track_id === 0) return;
         if (document.querySelector('.ui-draggable-dragging')) return;
 
@@ -884,9 +918,19 @@ function bindSliderTipPositionFixOnce() {
         if (tip) tip.remove();
     };
 
+    const handleTrackPointer = e => {
+        const track = e.target?.closest?.(combinedSelectorStr);
+        if (!track) return;
+
+        if (track.matches(seekSelectorStr)) {
+            handleSeekTooltip(e, track);
+        } else if (track.matches(volumeSelectorStr)) {
+            handleVolumeTooltip(e, track);
+        }
+    };
+
     ['mousemove', 'click', 'mouseup'].forEach(evt => {
-        document.addEventListener(evt, handleSeekTooltip, true);
-        document.addEventListener(evt, handleVolumeTooltip, true);
+        document.addEventListener(evt, handleTrackPointer, true);
     });
     document.addEventListener('mouseout', handleMouseout, true);
 }
@@ -904,6 +948,143 @@ async function init() {
         window.__vkifyMusicPopupTryWrapUpdateFace();
     }
 }
+
+function updatePlaylistBookmarkButton(el, wasUnbookmark) {
+    const isBookmarked = !wasUnbookmark;
+
+    el.setAttribute('id', isBookmarked ? 'unbookmarkPlaylist' : 'bookmarkPlaylist');
+
+    if (el.classList.contains('ActionButton--add')) {
+        el.classList.toggle('ActionButton--add--added', isBookmarked);
+        const textSpan = el.querySelector('.ActionButton--add__text');
+        if (textSpan) {
+            textSpan.innerHTML = isBookmarked ? tr('unbookmark') : tr('bookmark');
+        } else {
+            el.innerHTML = isBookmarked ? tr('unbookmark') : tr('bookmark');
+        }
+        return;
+    }
+
+    const label = el.querySelector('.action_label');
+    if (label) {
+        label.innerHTML = isBookmarked ? tr('unbookmark') : tr('bookmark');
+        el.classList.toggle('video_add_button', !isBookmarked);
+        el.classList.toggle('video_delete_button', isBookmarked);
+        return;
+    }
+
+    if (el.classList.contains('audio_pl__actions_add') || el.classList.contains('audio_pl__actions_remove')) {
+        el.classList.toggle('audio_pl__actions_add', !isBookmarked);
+        el.classList.toggle('audio_pl__actions_remove', isBookmarked);
+        return;
+    }
+
+    el.innerHTML = isBookmarked ? tr('unbookmark') : tr('bookmark');
+}
+
+vkify.bindOnce('playlistBookmark', () => {
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('#bookmarkPlaylist, #unbookmarkPlaylist');
+        if (!el) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const wasUnbookmark = el.id === 'unbookmarkPlaylist';
+
+        const formData = new FormData();
+        formData.append('hash', vkify.getCsrf());
+
+        el.classList.add('lagged');
+        ky.post(`/playlist${el.dataset.id}/action?act=${wasUnbookmark ? 'unbookmark' : 'bookmark'}`, { body: formData }).json().then((response) => {
+            if (response.success) {
+                updatePlaylistBookmarkButton(el, wasUnbookmark);
+                el.classList.remove('lagged');
+            } else {
+                fastError(response.flash.message);
+            }
+        }).catch((err) => {
+            console.error(err);
+            el.classList.remove('lagged');
+        });
+    }, true);
+});
+
+vkify.bindOnce('statusBroadcastToggle', () => {
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.bigPlayer .additionalButtons .statusButton');
+        if (!btn) return;
+
+        e.preventDefault();
+
+        const parent = btn.closest('.additionalButtons') || btn.closest('.bigPlayer');
+        if (!parent) return;
+
+        const form = parent.querySelector('form[name="status_popup_form"]');
+        if (!form) return;
+
+        const isPressed = btn.classList.contains('pressed');
+        const newBroadcastState = !isPressed;
+
+        // Toggle visual state immediately
+        btn.classList.toggle('pressed', newBroadcastState);
+
+        // Sync other statusButtons and checkboxes on the page
+        document.querySelectorAll('.bigPlayer .additionalButtons .statusButton').forEach(otherBtn => {
+            if (otherBtn !== btn) {
+                otherBtn.classList.toggle('pressed', newBroadcastState);
+            }
+        });
+        document.querySelectorAll('input[name="broadcast"]').forEach(checkbox => {
+            checkbox.checked = newBroadcastState;
+        });
+
+        const statusVal = form.querySelector('input[name="status"]')?.value || '';
+        const hashVal = form.querySelector('input[name="hash"]')?.value || '';
+
+        const formData = new FormData();
+        formData.append('status', statusVal);
+        formData.append('broadcast', Number(newBroadcastState));
+        formData.append('hash', hashVal);
+
+        try {
+            let ok = false;
+            if (window.ky) {
+                const response = await window.ky.post('/edit?act=status', { body: formData });
+                ok = response.ok;
+            } else {
+                const response = await fetch('/edit?act=status', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                ok = response.ok;
+            }
+
+            if (!ok) {
+                throw new Error('Server returned non-ok status');
+            }
+            if (window.openvk) {
+                window.openvk.broadcast_music = newBroadcastState;
+            }
+        } catch (err) {
+            console.error(err);
+            // Revert visual state if failed
+            btn.classList.toggle('pressed', isPressed);
+            document.querySelectorAll('.bigPlayer .additionalButtons .statusButton').forEach(otherBtn => {
+                if (otherBtn !== btn) {
+                    otherBtn.classList.toggle('pressed', isPressed);
+                }
+            });
+            document.querySelectorAll('input[name="broadcast"]').forEach(checkbox => {
+                checkbox.checked = isPressed;
+            });
+        }
+    }, true);
+});
 
 vkify.onPage(init);
 })();

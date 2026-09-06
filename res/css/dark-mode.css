@@ -65,6 +65,7 @@ body.dark-mode {
 	/* Success colors */
 	--success-color: #5cb85c;
 	--success-color--hover: #6fd16f;
+	--success-color--active: #4BAA4B;
 	--success-text-color: var(--white);
 
 	/* Audio player colors */
@@ -93,29 +94,43 @@ body.dark-mode {
 	--quote-border-color: #454546;
 	--search-placeholder-color: #858585;
 	--search-placeholder-focus-color: #a5a5a5;
-	--message-warning-background: #363637;
+	--message-warning-background: #3d2c28;
 	--message-warning-border: #e64d4d;
 	--overlay-background: rgba(0, 0, 0, 0.85);
+
+	--elevator-bg-color: #272727;
+	--elevator-text-color: #a5a5a5;
 
 	/* Profile page colors */
 	--album-background-color: #323233;
 	--album-title-muted-color: #858585;
 	--profile-border-color: #454546;
-	--profile-button-border-color: #71aaeb;
+	--profile-button-border-color: #cccccc;
 }
 
-body.dark-mode .sidebar_inner .link::before, body.dark-mode .post-attach-menu__icon, body.dark-mode .page_upload_label, body.dark-mode .post_like_icon, body.dark-mode .post_share_icon, body.dark-mode .home_navigation .top_nav_btn_icon {
-	filter: brightness(140%);
+body.dark-mode .sidebar_inner .link .link_icon, body.dark-mode .post_settings .common_icon, 
+body.dark-mode .post-attach-menu__icon, body.dark-mode .page_upload_label, 
+body.dark-mode .home_navigation .top_nav_btn_icon,
+body.dark-mode .bigPlayer .additionalButtons .musicIcon,body.dark-mode .audioEntry .buttons .musicIcon {
+	filter: grayscale(1);
 }
 body.dark-mode .home_navigation .top_nav_btn_icon {
-	filter: saturate(40%) brightness(250%);
+	filter: grayscale(1) contrast(0);
 }
 body.dark-mode #liked {
     filter: brightness(120%);
 }
 
-body.dark-mode .button .profile_gift_icon,body.dark-mode .button:not(.post_like,.button_light) i,.bigPlayer .playButtons .playButton .playIcon, [src*="/icons/no_music.svg"] {
+body.dark-mode input[type="checkbox"]:not(:checked),
+body.dark-mode input[type="radio"]:not(:checked) {
+	filter: invert(1) contrast(70%) grayscale(1);
+}
+
+body.dark-mode .button .profile_gift_icon, .bigPlayer .playButtons .playButton .playIcon, [src*="/icons/no_music.svg"] {
 	filter: invert(1)!important
+}
+body.dark-mode input[type="radio"] {
+	filter: invert(1) hue-rotate(180deg) brightness(140%);
 }
 
 body.dark-mode .tippy-menu a,.ovk-diag-head a,.ovk-diag-head .divider::before {

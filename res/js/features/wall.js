@@ -1,9 +1,15 @@
-(function() {
-'use strict';
+(() => {
+
 
 const tr = window.tr;
 const u = window.u;
 const LoaderUtils = window.LoaderUtils;
+
+// al_wall.js registers a global delegated input listener on every textarea that
+// collapses the field to measure it on every keystroke. In Safari that temporary
+// collapse pulls the viewport up. vkify16 uses textarea-autosize.js instead,
+// so drop the legacy umbrella input listener before it can interfere.
+u(document).off('input');
 
 if (!window.wallCheckboxStates) {
     window.wallCheckboxStates = {
@@ -33,7 +39,23 @@ function syncGlobalWallCheckboxState(state) {
 }
 
 function resolveWallFormContext(el) {
+    // Post-opts checkboxes carry an explicit `form` attribute so they stay
+    // associated with their composer/edit form even when tippy moves them
+    // into a tooltip appended to <body> (see textArea.latte / renderEditMenuLayout).
+    // The native `.form` property resolves that association regardless of
+    // where the element currently lives in the DOM.
+    if (el?.form) return el.form;
     return el?.closest?.('form') || document.querySelector('#write form') || null;
+}
+
+// Like `form.querySelector('input[name="..."]')`, but also finds controls
+// that are associated with the form via the `form="..."` attribute rather
+// than by being an actual DOM descendant (e.g. post-opts checkboxes living
+// inside a tooltip appended to <body>).
+function findWallFormControl(form, name) {
+    if (!form) return null;
+    const control = form.elements.namedItem(name);
+    return control instanceof RadioNodeList ? control[0] : control;
 }
 
 function getActiveTippyBox(el) {
@@ -44,65 +66,108 @@ function queryInActiveTippyBox(el, selector) {
     const tippyBox = getActiveTippyBox(el);
     return tippyBox?.querySelector(selector) || null;
 }
-
 function renderEditMenuLayout(apiPost, type, postId) {
     const clubId = apiPost.owner_id < 0 ? Math.abs(apiPost.owner_id) : 0;
+    const editFormId = `write-edit-form-${postId}`;
+
+    const nsfwOpt = type === 'post'
+        ? `<label class="checkbox"><input type="checkbox" name="nsfw" form="${editFormId}" ${apiPost.is_explicit ? 'checked' : ''} /><span>${tr('contains_nsfw')}</span></label>`
+        : '';
+
+    const asGroupOpt = type === 'post' && apiPost.owner_id < 0 && apiPost.can_pin
+        ? `<label class="checkbox"><input type="checkbox" name="as_group" form="${editFormId}" ${apiPost.from_id < 0 ? 'checked' : ''} /><span>${tr('post_as_group')}</span></label>`
+        : '';
+
+    const postOptsItems = `${nsfwOpt}${asGroupOpt}`;
+    const postOptsTrigger = type === 'post' && postOptsItems
+        ? `<div class="post-opts-trigger">
+            <div class="post_settings" id="postOptsTrigger${postId}" role="button" data-tippy-content-id="postOptsTooltip${postId}" data-tippy-append-to="body">
+                <div class="common_icon"></div>
+            </div>
+       </div>`
+        : '';
+    const postOptsTooltip = type === 'post' && postOptsItems
+        ? `<div class="post-opts tippy-menu tippy-content-template" id="postOptsTooltip${postId}">${postOptsItems}</div>`
+        : '';
+
+    const inlineAttachButtons = type === 'post'
+        ? `
+            <a class="attach_photo" id="__vkifyPhotoAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('photo')}">
+                <div class="post-attach-menu__icon"></div>
+            </a>
+            <a class="attach_video" id="__vkifyVideoAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('video')}">
+                <div class="post-attach-menu__icon"></div>
+            </a>
+            <a class="attach_audio" id="__vkifyAudioAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('audio')}">
+                <div class="post-attach-menu__icon"></div>
+            </a>
+        `
+        : '';
+
+    const dropdownTrigger = type === 'post'
+        ? `<a class="post-attach-menu__trigger" id="moreAttachTrigger${postId}" data-tippy-content-id="moreAttachTooltip${postId}" data-tippy-append-to="body">
+                ${window.vkifylang?.more ?? tr('show_more')}
+           </a>`
+        : `<span class="post-attach-menu__trigger" id="moreAttachTrigger${postId}" tabindex="0" role="button" data-tippy-content-id="moreAttachTooltip${postId}" data-tippy-append-to="body"></span>`;
+
+    const dropdownItems = type === 'post'
+        ? `
+            <a class="attach_document" id="__vkifyDocumentAttachment" data-club="${clubId}">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('document')}
+            </a>
+            <a class="attach_note" id="__vkifyNotesAttachment">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('note')}
+            </a>
+            <a class="attach_source" id="__sourceAttacher">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('source')}
+            </a>
+        `
+        : `
+            <a class="attach_photo" id="__vkifyPhotoAttachment" data-club="${clubId}">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('photo')}
+            </a>
+            <a class="attach_video" id="__vkifyVideoAttachment" data-club="${clubId}">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('video')}
+            </a>
+            <a class="attach_audio" id="__vkifyAudioAttachment" data-club="${clubId}">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('audio')}
+            </a>
+            <a class="attach_document" id="__vkifyDocumentAttachment" data-club="${clubId}">
+                <div class="post-attach-menu__icon"></div>
+                ${tr('document')}
+            </a>
+        `;
+
+    const attachMenuHtml = `
+        <div id="wallAttachmentMenu" class="page_add_media post-attach-menu ${type === 'post' ? 'post-attach-menu--inline' : ''}">
+            ${inlineAttachButtons}
+            ${dropdownTrigger}
+            ${postOptsTrigger}
+            ${postOptsTooltip}
+            <div class="tippy-menu tippy-content-template" id="moreAttachTooltip${postId}">
+                ${dropdownItems}
+            </div>
+        </div>
+    `;
 
     return `
         <div class='edit_menu module_body'>
-            <form id="write">
+            <form id="${editFormId}">
                 <textarea placeholder="${tr('edit')}" name="text" style="width: 100%;resize: none;" class="expanded-textarea small-textarea">${apiPost.text}</textarea>
                 <div class='post-buttons'>
                     <div class="post-horizontal"></div>
                     <div class="post-vertical"></div>
                     <div class="post-repost"></div>
                     <div class="post-source"></div>
-                    <div class='post-opts'>
-                        ${type == 'post' ? `<label>
-                            <input type="checkbox" name="nsfw" ${apiPost.is_explicit ? 'checked' : ''} /> ${tr('contains_nsfw')}
-                        </label>` : ''}
-                        ${apiPost.owner_id < 0 && apiPost.can_pin ? `<label>
-                            <input type="checkbox" name="as_group" ${apiPost.from_id < 0 ? 'checked' : ''} /> ${tr('post_as_group')}
-                        </label>` : ''}
-                    </div>
                     <input type="hidden" id="source" name="source" value="none" />
                     <div class="post-bottom-acts">
-                        <div id="wallAttachmentMenu" class="page_add_media post-attach-menu">
-                            <a class="attach_photo" id="__vkifyPhotoAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('photo')}">
-                                <div class="post-attach-menu__icon"></div>
-                            </a>
-                            <a class="attach_video" id="__vkifyVideoAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('video')}">
-                                <div class="post-attach-menu__icon"></div>
-                            </a>
-                            <a class="attach_audio" id="__vkifyAudioAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('audio')}">
-                                <div class="post-attach-menu__icon"></div>
-                            </a>
-                            ${type == 'post' ? `
-                            <a class="post-attach-menu__trigger" id="moreAttachTrigger${postId}" data-tippy-content-id="moreAttachTooltip${postId}">
-                                ${tr('show_more')}
-                            </a>
-                            ` : `
-                            <a class="attach_document" id="__vkifyDocumentAttachment" data-club="${clubId}" data-tip="simple-black" data-align="bottom-start" data-tiptitle="${tr('document')}">
-                                <div class="post-attach-menu__icon"></div>
-                            </a>
-                            `}
-                            ${type == 'post' ? `
-                            <div class="tippy-menu tippy-content-template" id="moreAttachTooltip${postId}">
-                                <a class="attach_document" id="__vkifyDocumentAttachment" data-club="${clubId}">
-                                    <div class="post-attach-menu__icon"></div>
-                                    ${tr('document')}
-                                </a>
-                                <a class="attach_note" id="__notesAttachment">
-                                    <div class="post-attach-menu__icon"></div>
-                                    ${tr('note')}
-                                </a>
-                                <a class="attach_source" id='__sourceAttacher'>
-                                    <div class="post-attach-menu__icon"></div>
-                                    ${tr('source')}
-                                </a>
-                            </div>
-                            ` : ''}
-                        </div>
+                        ${attachMenuHtml}
                         <div class='edit_menu_buttons post-bottom-buttons'>
                             <input class='button button_light' type='button' id='__edit_cancel' value='${tr('cancel')}'>
                             <input class='button' type='button' id='__edit_save' value='${tr('save')}'>
@@ -139,10 +204,10 @@ function renderRepostBottomLayout() {
                     </div>
                     <div class="post-opts tippy-menu tippy-content-template" id="__vkifyRepostOptsTooltip">
                         <label class="checkbox">
-                            <input type="checkbox" name="asGroup" /> ${tr('post_as_group')}
+                            <input type="checkbox" name="asGroup" /><span>${tr('post_as_group')}</span>
                         </label>
                         <label class="checkbox" id="__vkifyRepostSignedOpt" style="display:none">
-                            <input type="checkbox" name="signed" /> ${tr('add_signature')}
+                            <input type="checkbox" name="signed" /><span>${tr('add_signature')}</span>
                         </label>
                     </div>
                     <input type="button" value="${tr('send')}" class="button" id="__vkifyRepostSend" />
@@ -173,6 +238,35 @@ function resetWallCheckboxStates(formOrEl) {
         state[key] = false;
     });
     syncGlobalWallCheckboxState(state);
+}
+
+function resetWallComposer(form) {
+    if (!form) return;
+
+    form.reset();
+
+    const textarea = form.querySelector('textarea.small-textarea');
+    if (textarea) {
+        textarea.classList.remove('expanded-textarea');
+        textarea.blur();
+    }
+
+    const composer = form.closest('.model_content_textarea');
+    if (composer) {
+        composer.classList.remove('shown');
+    }
+
+    const horizontal = form.querySelector('.post-horizontal');
+    const vertical = form.querySelector('.post-vertical');
+    const source = form.querySelector('.post-source');
+    const geo = form.querySelector('.post-has-geo');
+
+    if (horizontal) horizontal.innerHTML = '';
+    if (vertical) vertical.innerHTML = '';
+    if (source) source.innerHTML = '';
+    if (geo) geo.innerHTML = '';
+
+    resetWallCheckboxStates(form);
 }
 
 function getWallCheckboxPayload(formOrEl) {
@@ -285,15 +379,14 @@ function bindSourceAttacherOnce() {
 
                 if (checkResult.error_code) {
                     switch (checkResult.error_code) {
-                        default:
-                        case 3102:
-                            fastError(tr('error_adding_source_regex'));
-                            break;
                         case 3103:
                             fastError(tr('error_adding_source_long'));
                             break;
                         case 3104:
                             fastError(tr('error_adding_source_sus'));
+                            break;
+                        default:
+                            fastError(tr('error_adding_source_regex'));
                             break;
                     }
                     if (submitBtn) submitBtn.classList.remove('lagged');
@@ -324,7 +417,7 @@ function bindSourceAttacherOnce() {
 function setupTooltipCheckboxListeners() {
     if (!vkify.bindOnce('wallCheckboxListeners', setupTooltipCheckboxListeners)) return;
 
-    u(document).on('change', 'input[name="as_group"]', function (e) {
+    u(document).on('change', 'input[name="as_group"]', (e) => {
         const state = getWallCheckboxState(e.target);
         state.as_group = e.target.checked;
         syncGlobalWallCheckboxState(state);
@@ -332,29 +425,35 @@ function setupTooltipCheckboxListeners() {
         if (e.target.checked) {
             state.anon = false;
             const formContext = resolveWallFormContext(e.target);
-            const anonCheckbox = formContext?.querySelector('input[name="anon"]') || null;
+            const anonCheckbox = findWallFormControl(formContext, 'anon');
             if (anonCheckbox) {
                 anonCheckbox.checked = false;
             }
         } else {
             state.force_sign = false;
             const formContext = resolveWallFormContext(e.target);
-            const forceSignCheckbox = formContext?.querySelector('input[name="force_sign"]') || null;
+            const forceSignCheckbox = findWallFormControl(formContext, 'force_sign');
             if (forceSignCheckbox) {
                 forceSignCheckbox.checked = false;
             }
         }
 
         syncGlobalWallCheckboxState(state);
+        
+        const form = resolveWallFormContext(e.target);
+        syncWallCheckboxHiddenInputs(form);
     });
 
-    u(document).on('change', 'input[name="force_sign"]', function (e) {
+    u(document).on('change', 'input[name="force_sign"]', (e) => {
         const state = getWallCheckboxState(e.target);
         state.force_sign = e.target.checked;
         syncGlobalWallCheckboxState(state);
+        
+        const form = resolveWallFormContext(e.target);
+        syncWallCheckboxHiddenInputs(form);
     });
 
-    u(document).on('change', 'input[name="anon"]', function (e) {
+    u(document).on('change', 'input[name="anon"]', (e) => {
         const state = getWallCheckboxState(e.target);
         state.anon = e.target.checked;
         syncGlobalWallCheckboxState(state);
@@ -362,13 +461,13 @@ function setupTooltipCheckboxListeners() {
         if (e.target.checked) {
             state.as_group = false;
             const formContext = resolveWallFormContext(e.target);
-            const asGroupCheckbox = formContext?.querySelector('input[name="as_group"]') || null;
+            const asGroupCheckbox = findWallFormControl(formContext, 'as_group');
             if (asGroupCheckbox) {
                 asGroupCheckbox.checked = false;
             }
 
             const form = resolveWallFormContext(e.target);
-            if (form && form.dataset.originalAction) {
+            if (form?.dataset.originalAction) {
                 form.action = form.dataset.originalAction;
             }
         }
@@ -376,17 +475,45 @@ function setupTooltipCheckboxListeners() {
         syncGlobalWallCheckboxState(state);
 
         window.handleWallAnonClick(e.target);
+        
+        const form = resolveWallFormContext(e.target);
+        syncWallCheckboxHiddenInputs(form);
     });
 
-    u(document).on('change', 'input[name="nsfw"]', function (e) {
+    u(document).on('change', 'input[name="nsfw"]', (e) => {
         const state = getWallCheckboxState(e.target);
         state.nsfw = e.target.checked;
         syncGlobalWallCheckboxState(state);
+        
+        const form = resolveWallFormContext(e.target);
+        syncWallCheckboxHiddenInputs(form);
+    });
+}
+
+function setupPostTooltipExclusivity() {
+    if (!vkify.bindOnce('wallPostTooltipExclusivity', setupPostTooltipExclusivity)) return;
+
+    document.addEventListener('tippyshow', (e) => {
+        const trigger = e.target;
+        if (!trigger || !trigger.id || !trigger.hasAttribute('data-tippy-content-id')) return;
+
+        let siblingId = null;
+        if (trigger.id.startsWith('postOptsTrigger')) {
+            siblingId = 'moreAttachTrigger' + trigger.id.slice('postOptsTrigger'.length);
+        } else if (trigger.id.startsWith('moreAttachTrigger')) {
+            siblingId = 'postOptsTrigger' + trigger.id.slice('moreAttachTrigger'.length);
+        }
+        if (!siblingId) return;
+
+        const sibling = document.getElementById(siblingId);
+        if (sibling && sibling !== trigger && sibling._tippy?.state?.isVisible) {
+            sibling._tippy.hide();
+        }
     });
 }
 
 function switchAvatar(el, targetType) {
-    const formContext = el.closest('#write') || el.closest('form');
+    const formContext = resolveWallFormContext(el);
     const userImg = formContext ? formContext.querySelector('.post_field_user_image') : document.querySelector('.post_field_user_image');
     const groupImg = formContext ? formContext.querySelector('.post_field_user_image_group') : document.querySelector('.post_field_user_image_group');
     const anonImg = formContext ? formContext.querySelector('.post_field_user_image_anon') : document.querySelector('.post_field_user_image_anon');
@@ -397,14 +524,23 @@ function switchAvatar(el, targetType) {
     const targetImg = targetType === 'group' ? groupImg : anonImg;
     if (!targetImg) return;
 
+    if (formContext) {
+        if (formContext._avatarTimeout) clearTimeout(formContext._avatarTimeout);
+        if (formContext._avatarCleanupTimeout) clearTimeout(formContext._avatarCleanupTimeout);
+    }
+
     if (el.checked) {
         if (targetType === 'group' && anonImg) anonImg.style.opacity = '0';
         if (targetType === 'anon' && groupImg) groupImg.style.opacity = '0';
 
-        userImg.classList.remove('avatar-showing');
-        userImg.classList.add('avatar-flipping');
+        if (userImg.style.opacity !== '0' || userImg.classList.contains('avatar-showing')) {
+            userImg.style.opacity = '';
+            userImg.classList.remove('avatar-showing');
+            userImg.classList.add('avatar-flipping');
+        }
 
-        setTimeout(() => {
+        const showTarget = () => {
+            targetImg.style.opacity = '';
             targetImg.classList.remove('avatar-flipping');
             targetImg.classList.add('avatar-showing');
 
@@ -413,18 +549,27 @@ function switchAvatar(el, targetType) {
                 avatarLink.href = targetUrl;
             }
 
-            setTimeout(() => {
+            const cleanup = () => {
                 userImg.style.opacity = '0';
                 userImg.classList.remove('avatar-flipping');
                 targetImg.style.opacity = '1';
                 targetImg.classList.remove('avatar-showing');
-            }, 150);
-        }, 150);
-    } else {
-        targetImg.classList.remove('avatar-showing');
-        targetImg.classList.add('avatar-flipping');
+            };
+            if (formContext) formContext._avatarCleanupTimeout = setTimeout(cleanup, 150);
+            else setTimeout(cleanup, 150);
+        };
 
-        setTimeout(() => {
+        if (formContext) formContext._avatarTimeout = setTimeout(showTarget, 150);
+        else setTimeout(showTarget, 150);
+    } else {
+        if (targetImg.style.opacity !== '0' || targetImg.classList.contains('avatar-showing')) {
+            targetImg.style.opacity = '';
+            targetImg.classList.remove('avatar-showing');
+            targetImg.classList.add('avatar-flipping');
+        }
+
+        const showUser = () => {
+            userImg.style.opacity = '';
             userImg.classList.remove('avatar-flipping');
             userImg.classList.add('avatar-showing');
 
@@ -432,17 +577,22 @@ function switchAvatar(el, targetType) {
                 avatarLink.href = userImg.dataset.userUrl;
             }
 
-            setTimeout(() => {
+            const cleanup = () => {
                 targetImg.style.opacity = '0';
                 targetImg.classList.remove('avatar-flipping');
                 userImg.style.opacity = '1';
                 userImg.classList.remove('avatar-showing');
-            }, 150);
-        }, 150);
+            };
+            if (formContext) formContext._avatarCleanupTimeout = setTimeout(cleanup, 150);
+            else setTimeout(cleanup, 150);
+        };
+
+        if (formContext) formContext._avatarTimeout = setTimeout(showUser, 150);
+        else setTimeout(showUser, 150);
     }
 }
 
-window.handleWallAsGroupClick = window.handleWallAsGroupClick || function (el) {
+window.handleWallAsGroupClick = window.handleWallAsGroupClick || ((el) => {
         const state = getWallCheckboxState(el);
         state.as_group = el.checked;
 
@@ -450,20 +600,20 @@ window.handleWallAsGroupClick = window.handleWallAsGroupClick || function (el) {
             state.anon = false;
         } else {
             state.force_sign = false;
-            const formContext = el.closest('#write') || el.closest('form') || document;
-            const forceSignCheckbox = formContext ? formContext.querySelector('input[name="force_sign"]') : null;
+            const formContext = resolveWallFormContext(el);
+            const forceSignCheckbox = findWallFormControl(formContext, 'force_sign');
             if (forceSignCheckbox) {
                 forceSignCheckbox.checked = false;
             }
         }
 
-        const form = el.closest('form') || document.querySelector('#write form');
+        const form = resolveWallFormContext(el);
         if (form) {
             if (!form.dataset.originalAction) {
                 form.dataset.originalAction = form.action;
             }
 
-            const isCommentForm = form.dataset.originalAction && form.dataset.originalAction.includes('/al_comments/create/');
+            const isCommentForm = form.dataset.originalAction?.includes('/al_comments/create/');
 
             if (!isCommentForm) {
                 const currentUrl = window.location.pathname;
@@ -478,9 +628,9 @@ window.handleWallAsGroupClick = window.handleWallAsGroupClick || function (el) {
 
         switchAvatar(el, 'group');
         syncGlobalWallCheckboxState(state);
-    };
+    });
 
-window.handleWallAnonClick = window.handleWallAnonClick || function (el) {
+window.handleWallAnonClick = window.handleWallAnonClick || ((el) => {
         const state = getWallCheckboxState(el);
         state.anon = el.checked;
 
@@ -488,7 +638,7 @@ window.handleWallAnonClick = window.handleWallAnonClick || function (el) {
             state.as_group = false;
         }
 
-        const form = el.closest('form') || document.querySelector('#write form');
+        const form = resolveWallFormContext(el);
         if (form) {
             if (!form.dataset.originalAction) {
                 form.dataset.originalAction = form.action;
@@ -501,9 +651,9 @@ window.handleWallAnonClick = window.handleWallAnonClick || function (el) {
 
         switchAvatar(el, 'anon');
         syncGlobalWallCheckboxState(state);
-    };
+    });
 
-window.onWallAsGroupClick = window.onWallAsGroupClick || function (el) {
+window.onWallAsGroupClick = window.onWallAsGroupClick || ((el) => {
         const forceSignOpt = queryInActiveTippyBox(el, '#forceSignOpt');
         if (forceSignOpt) {
             forceSignOpt.style.setProperty('display', el.checked ? 'flex' : 'none', 'important');
@@ -525,16 +675,16 @@ window.onWallAsGroupClick = window.onWallAsGroupClick || function (el) {
         }
 
         window.handleWallAsGroupClick(el);
-    };
+    });
 
-window.onWallAnonClick = window.onWallAnonClick || function (el) {
+window.onWallAnonClick = window.onWallAnonClick || ((el) => {
         const asGroupCheckbox = queryInActiveTippyBox(el, 'input[name="as_group"]');
         if (asGroupCheckbox) {
             asGroupCheckbox.disabled = el.checked;
         }
 
         window.handleWallAnonClick(el);
-    };
+    });
 
 function bindComposerSubmitOnce() {
     if (!vkify.bindOnce('composerSubmit', bindComposerSubmitOnce)) return;
@@ -556,8 +706,8 @@ function bindComposerSubmitOnce() {
         const finalize = () => {
             if (done) return;
             done = true;
-            try { observer.disconnect(); } catch (e) { }
-            try { clearTimeout(timer); } catch (e) { }
+            try { observer.disconnect(); } catch (_e) { }
+            try { clearTimeout(timer); } catch (_e) { }
         };
 
         const tryIncrement = () => {
@@ -586,7 +736,7 @@ function bindComposerSubmitOnce() {
         }, 5000);
     };
 
-    u(document).on('submit', '#write form', function (e) {
+    u(document).on('submit', '#write form', (e) => {
         const form = e.target;
 
         syncWallCheckboxHiddenInputs(form);
@@ -596,13 +746,27 @@ function bindComposerSubmitOnce() {
     });
 }
 
+function bindCommentCancelOnce() {
+    if (!vkify.bindOnce('commentCancel', bindCommentCancelOnce)) return;
+
+    u(document).on('click', '.wall-comment-cancel', (e) => {
+        e.preventDefault();
+        const button = e.target.closest('.wall-comment-cancel');
+        const form = button?.closest('form');
+        resetWallComposer(form);
+    });
+}
+
 vkify.once('initTextareaInteraction', () => {
-    window.initTextareaInteraction = function () {
+    window.initTextareaInteraction = () => {
         if (!vkify.bindOnce('textareaInteraction', window.initTextareaInteraction)) return;
 
         const showComposer = (target) => {
             if (target.tagName === 'TEXTAREA' || target.classList?.contains('submit_post_field')) {
                 target.closest('.model_content_textarea')?.classList.add('shown');
+                if (target.classList?.contains('small-textarea')) {
+                    target.classList.add('expanded-textarea');
+                }
             }
         };
 
@@ -628,64 +792,378 @@ vkify.once('initTextareaInteraction', () => {
 });
 
 setupTooltipCheckboxListeners();
+setupPostTooltipExclusivity();
 bindComposerSubmitOnce();
+bindCommentCancelOnce();
 bindSourceAttacherOnce();
 
+let _groupInfoTabsInitialized = false;
+function initGroupInfoTabs() {
+    if (_groupInfoTabsInitialized) return;
+    _groupInfoTabsInitialized = true;
+
+    document.addEventListener('click', (e) => {
+        const container = e.target.closest('#group_info_tabs');
+        if (!container) return;
+
+        const tabLink = e.target.closest('.ui_tab');
+        if (!tabLink) return;
+        
+        e.preventDefault();
+        
+        const tabLi = tabLink.closest('li');
+        if (!tabLi) return;
+        const tabId = tabLi.id;
+        
+        container.querySelectorAll('li').forEach(li => {
+            const tab = li.querySelector('.ui_tab');
+            if (tab) tab.classList.toggle('ui_tab_sel', li.id === tabId);
+        });
+        window.__vkifyMoveTabSlider?.(container, tabLink, true);
+        
+        const infoContent = document.getElementById('group_tab_info_content');
+        const pinnedContent = document.getElementById('group_tab_pinned_content');
+        
+        if (tabId === 'group_tab_info') {
+            if (infoContent) infoContent.style.display = '';
+            if (pinnedContent) pinnedContent.style.display = 'none';
+        } else if (tabId === 'group_tab_pinned') {
+            if (infoContent) infoContent.style.display = 'none';
+            if (pinnedContent) pinnedContent.style.display = '';
+        }
+    });
+}
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', () => {
         window.initTextareaInteraction();
+        initGroupInfoTabs();
     });
 } else {
     window.initTextareaInteraction();
+    initGroupInfoTabs();
 }
 
-function initSuggestedTabHooksOnce() {
-    if (!ge('__vkifyEnableSuggestedWallTab')) return;
-    if (!vkify.bindOnce('suggestedTabHooks', initSuggestedTabHooksOnce)) return;
+function getSuggestionPostNode(el) {
+    return el?.closest('.post') || el?.closest('table') || null;
+}
 
-    const addSuggestedTabToWall = () => {
-        const currentUrl = window.location.pathname;
-        const groupMatch = currentUrl.match(/^\/club(\d+)/);
-        if (groupMatch) {
-            const groupId = groupMatch[1];
-            const suggListElement = document.querySelector('.sugglist');
-            if (suggListElement) {
-                const wallTabs = document.querySelector('#wall_top_tabs');
-                if (wallTabs) {
-                    const existingTab = wallTabs.querySelector('#wall_tab_suggested');
-                    if (existingTab) {
-                        return;
-                    }
+function getClubPageUrl() {
+    const match = location.pathname.match(/^\/club(\d+)/);
+    return match ? `/club${match[1]}` : location.pathname.replace(/\/suggested$/, '');
+}
 
-                    const countMatch = suggListElement.textContent.match(/(\d+)/);
-                    const suggestedCount = countMatch ? countMatch[1] : '0';
+function setWallTabSelected(tabId, animate = true) {
+    const container = document.getElementById('wall_top_tabs');
+    const targetTab = document.getElementById(tabId)?.querySelector('.ui_tab');
+    if (!container || !targetTab) return;
 
-                    const suggestedTab = document.createElement('li');
-                    suggestedTab.id = 'wall_tab_suggested';
-                    suggestedTab.innerHTML = `
-                        <a class="ui_tab" href="/club${groupId}/suggested">
-                            ${tr('suggested')}
-                            <span class="ui_tab_count">${suggestedCount}</span>
-                        </a>
-                    `;
-                    wallTabs.appendChild(suggestedTab);
+    document.querySelectorAll('#wall_top_tabs > li').forEach((li) => {
+        const tab = li.querySelector('.ui_tab');
+        if (!tab) return;
+        tab.classList.toggle('ui_tab_sel', li.id === tabId);
+    });
+
+    window.__vkifyMoveTabSlider?.(container, targetTab, animate);
+}
+
+function isAjaxWallOpen() {
+    const insertThere = document.querySelector('.wall_module .insertThere');
+    return insertThere?.style.display === 'block';
+}
+
+function showAjaxWallContent(tabId) {
+    const insertThere = document.querySelector('.wall_module .insertThere');
+    const allPostsContainer = document.getElementById('all_posts') || document.querySelector('.wall_module #underHeader') || document.getElementById('underHeader');
+    const tabLink = document.querySelector(`#${tabId} a`);
+    if (!insertThere || !allPostsContainer || !tabLink) return;
+
+    allPostsContainer.style.display = 'none';
+    insertThere.style.display = 'block';
+    
+    if (tabId === 'wall_tab_suggested') {
+        insertThere.classList.add('infContainer');
+    } else {
+        insertThere.classList.remove('infContainer');
+    }
+
+    
+    history.pushState({}, '', tabLink.href);
+
+    if (insertThere.dataset.loadedTab === tabId) return;
+    
+    insertThere.innerHTML = '';
+    insertThere.dataset.loadedTab = tabId;
+
+    if (typeof window.__resetPaginatorState === 'function') {
+        const allPostsContainer = document.getElementById('all_posts') || document.querySelector('.wall_module #underHeader') || document.getElementById('underHeader');
+        window.__resetPaginatorState(allPostsContainer);
+    }
+
+    ky.get(tabLink.href, {
+        hooks: {
+            beforeRequest: [() => {
+                insertThere.insertAdjacentHTML('afterbegin', '<div class="page_block page_padding loader_wrapper" style="text-align: center;"></div>');
+                if (window.LoaderUtils) {
+                    window.LoaderUtils.show(insertThere.querySelector('.loader_wrapper'));
+                } else {
+                    insertThere.querySelector('.loader_wrapper').innerHTML = '<img src="/assets/packages/static/openvk/img/loading_mini.gif">';
                 }
-            }
+            }],
+            afterResponse: [async (_request, _options, response) => {
+                const text = await response.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                
+                let result;
+                if (tabId === 'wall_tab_suggested') {
+                    result = doc.querySelector('.infContainer');
+                } else if (tabId === 'wall_tab_owners') {
+                    result = doc.getElementById('owner_posts') || doc.querySelector('.wall_posts.content.scroll_container') || doc.querySelector('.content.scroll_container');
+                }
+
+                if (!result) return;
+                
+                if (tabId === 'wall_tab_owners' || tabId === 'wall_tab_suggested') {
+                    const loadedSearch = result.querySelector('#wall_search');
+                    // The search bar is wrapped in a page_block, it's better to hide the whole block if it exists
+                    if (loadedSearch) {
+                        const searchBlock = loadedSearch.closest('.page_block');
+                        if (searchBlock && searchBlock.style) {
+                            searchBlock.style.display = 'none';
+                        } else {
+                            loadedSearch.style.display = 'none';
+                        }
+                    }
+                }
+
+                result.querySelectorAll('.bsdn').forEach(bsdnInitElement);
+                // For owners, we inject outerHTML so the #owner_posts wrapper is preserved
+                if (tabId === 'wall_tab_owners') {
+                    insertThere.innerHTML = result.outerHTML;
+                } else {
+                    insertThere.innerHTML = result.innerHTML;
+                }
+            }],
+        },
+    });
+}
+
+function hideAjaxWallContent() {
+    const insertThere = document.querySelector('.wall_module .insertThere');
+    const allPostsContainer = document.getElementById('all_posts') || document.querySelector('.wall_module #underHeader') || document.getElementById('underHeader');
+    if (!insertThere || !allPostsContainer) return;
+
+    allPostsContainer.style.display = '';
+    insertThere.style.display = 'none';
+    insertThere.classList.remove('infContainer');
+    insertThere.dataset.loadedTab = 'wall_tab_all';
+    
+    if (typeof window.__resetPaginatorState === 'function') {
+        window.__resetPaginatorState(allPostsContainer);
+    }
+    
+    const allTabLink = document.querySelector('#wall_tab_all a');
+    const url = allTabLink ? allTabLink.href : getClubPageUrl();
+    
+    history.pushState({}, '', url);
+}
+
+function updateSuggestionCounts(newCount) {
+    const count = String(newCount);
+
+    const tabCount = document.querySelector('#wall_tab_suggested .ui_tab_count');
+    if (tabCount) tabCount.textContent = count;
+
+    const cound = document.getElementById('cound');
+    if (cound) {
+        cound.textContent = tr('suggested_posts_in_group', newCount);
+    }
+
+    document.querySelectorAll('.page_block_header_inner .ui_crumb_count').forEach((el, idx, all) => {
+        if (idx === all.length - 1) el.textContent = count;
+    });
+
+    if (newCount < 1) {
+        const insertThere = document.querySelector('.wall_module .insertThere');
+        if (isAjaxWallOpen() && insertThere?.dataset?.loadedTab === 'wall_tab_suggested') {
+            hideAjaxWallContent();
+        }
+        document.getElementById('wall_tab_suggested')?.remove();
+        if (insertThere?.dataset?.loadedTab === 'wall_tab_suggested') {
+            setWallTabSelected('wall_tab_all', false);
+        }
+    }
+}
+
+function removeSuggestionPost(postNode) {
+    if (!postNode) return;
+    postNode.style.transition = 'opacity 300ms ease-in-out';
+    postNode.style.opacity = '0';
+    postNode.classList.remove('post');
+    setTimeout(() => { postNode.outerHTML = ''; }, 300);
+}
+
+function loadMoreSuggestedPostsVkify() {
+    let link = location.href;
+    if (!link.includes('/suggested')) {
+        link += '/suggested';
+    }
+
+    const container = document.getElementById('postz') || document.getElementById('wall_block_posts');
+    if (!container) return;
+
+    ky.get(link, {
+        hooks: {
+            beforeRequest: [() => {
+                container.innerHTML = '<img src="/assets/packages/static/openvk/img/loading_mini.gif">';
+            }],
+            afterResponse: [async (_request, _options, response) => {
+                const body = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const posts = body.querySelectorAll('.post');
+
+                if (posts.length < 1) {
+                    const url = new URL(location.href);
+                    const page = Number(url.searchParams.get('p') || 1);
+                    if (page < 2) return;
+                    url.searchParams.set('p', String(page - 1));
+                    history.pushState({}, '', url);
+                    loadMoreSuggestedPostsVkify();
+                    return;
+                }
+
+                body.querySelectorAll('.bsdn').forEach(bsdnInitElement);
+                const source = body.getElementById('postz') || body.getElementById('wall_block_posts');
+                if (source) container.innerHTML = source.innerHTML;
+            }],
+        },
+    });
+}
+
+function initSuggestionsAdapterOnce() {
+    if (!vkify.bindOnce('suggestionsAdapter', initSuggestionsAdapterOnce)) return;
+    if (typeof window.ky === 'undefined' || typeof window.MessageBox !== 'function') return;
+
+    window.endSuggestAction = (newCount, postNode) => {
+        updateSuggestionCounts(newCount);
+        removeSuggestionPost(postNode);
+
+        const postsRoot = document.getElementById('postz') || document.getElementById('wall_block_posts');
+        if (
+            postsRoot
+            && postsRoot.querySelectorAll('.post').length < 1
+            && newCount > 0
+            && document.querySelector('.paginator')
+        ) {
+            loadMoreSuggestedPostsVkify();
         }
     };
 
-    window.addSuggestedTabToWall = addSuggestedTabToWall;
+    window.loadMoreSuggestedPosts = loadMoreSuggestedPostsVkify;
 
-    vkify.onPage(addSuggestedTabToWall);
+    window.__vkifyOnWallTabSwitch = (tab) => {
+        const tabId = tab.closest('li')?.id;
+        if (tabId === 'wall_tab_suggested' || tabId === 'wall_tab_owners') {
+            showAjaxWallContent(tabId);
+            return true;
+        }
+        if (tabId === 'wall_tab_all' && isAjaxWallOpen()) {
+            hideAjaxWallContent();
+            return true;
+        }
+        return false;
+    };
+
+    document.addEventListener('click', (e) => {
+        const declineBtn = e.target.closest('#decline_post');
+        if (declineBtn) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            const post = getSuggestionPostNode(declineBtn);
+            const formData = new FormData();
+            formData.append('id', declineBtn.dataset.id);
+            formData.append('hash', u('meta[name=csrf]').attr('value'));
+
+            declineBtn.classList.add('lagged');
+            declineBtn.removeAttribute('id');
+
+            ky.post('/wall/decline', { body: formData }).then(async (response) => {
+                const json = await response.json();
+                if (json.success) {
+                    window.endSuggestAction(json.new_count, post);
+                } else {
+                    MessageBox(tr('error'), json.flash.message, [tr('ok')], [Function.noop]);
+                }
+                declineBtn.textContent = tr('decline_suggested');
+                declineBtn.id = 'decline_post';
+                declineBtn.classList.remove('lagged');
+            }).catch(console.error);
+
+            return;
+        }
+
+        const publishBtn = e.target.closest('#publish_post');
+        if (!publishBtn) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const post = getSuggestionPostNode(publishBtn);
+        const sourceText = post?.querySelector('.really_text')?.dataset?.text || '';
+        const body = `
+            <textarea id="pooblish" style="max-height:500px;resize:vertical;min-height:54px;"></textarea>
+            <label class="checkbox"><input type="checkbox" id="signatr" checked><span>${tr('add_signature')}</span></label>
+        `;
+
+        MessageBox(tr('publishing_suggested_post'), body, [tr('publish'), tr('cancel')], [
+            async () => {
+                const formData = new FormData();
+                formData.append('id', publishBtn.dataset.id);
+                formData.append('sign', document.getElementById('signatr')?.checked ? 1 : 0);
+                formData.append('new_content', document.getElementById('pooblish')?.value || '');
+                formData.append('hash', u('meta[name=csrf]').attr('value'));
+
+                publishBtn.classList.add('lagged');
+                publishBtn.removeAttribute('id');
+
+                try {
+                    const response = await ky.post('/wall/accept', { body: formData });
+                    const json = await response.json();
+
+                    if (json.success) {
+                        NewNotification(
+                            tr('suggestion_succefully_published'),
+                            tr('suggestion_press_to_go'),
+                            null,
+                            () => { window.location.assign(`/wall${json.id}`); }
+                        );
+                        window.endSuggestAction(json.new_count, post);
+                    } else {
+                        MessageBox(tr('error'), json.flash.message, [tr('ok')], [Function.noop]);
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+
+                publishBtn.textContent = tr('publish_suggested');
+                publishBtn.id = 'publish_post';
+                publishBtn.classList.remove('lagged');
+            },
+            Function.noop,
+        ]);
+
+        const pooblish = document.getElementById('pooblish');
+        if (pooblish) pooblish.value = sourceText;
+        const diagBody = document.querySelector('.ovk-diag-body');
+        if (diagBody) diagBody.style.padding = '9px';
+    }, true);
 }
 
-initSuggestedTabHooksOnce();
+initSuggestionsAdapterOnce();
 
 vkify.once('reportPost', () => {
-    window.reportPost = function (postId) {
-        let uReportMsgTxt = tr("going_to_report_post");
-        uReportMsgTxt += "<br/>" + tr("report_question_text");
-        uReportMsgTxt += "<br/><br/><b>" + tr("report_reason") + "</b>: <input type='text' id='uReportMsgInput' placeholder='" + tr("reason") + "' />";
+    window.reportPost = (postId) => {
+        const uReportMsgTxt = `${tr("going_to_report_post")}<br/>${tr("report_question_text")}<br/><br/><b>${tr("report_reason")}</b>: <input type='text' id='uReportMsgInput' placeholder='${tr("reason")}' />`;
 
         MessageBox(tr("report_question"), uReportMsgTxt, [tr("confirm_m"), tr("cancel")], [
             async () => {
@@ -694,15 +1172,14 @@ vkify.once('reportPost', () => {
 
                 try {
                     const params = new URLSearchParams({ reason, type: 'post' });
-                    const response = await fetch(`/report/${postId}?${params.toString()}`, { method: 'GET' });
-                    const body = await response.text();
-                    if (!response.ok || body.indexOf('reason') === -1) {
+                    const body = await ky.get(`/report/${postId}?${params.toString()}`).text();
+                    if (body.indexOf('reason') === -1) {
                         MessageBox(tr('error'), tr('error_sending_report'), ['OK'], [Function.noop]);
                         return;
                     }
 
                     MessageBox(tr('action_successfully'), tr('will_be_watched'), ['OK'], [Function.noop]);
-                } catch (err) {
+                } catch (_err) {
                     MessageBox(tr('error'), tr('error_sending_report'), ['OK'], [Function.noop]);
                 }
             },
@@ -714,12 +1191,12 @@ vkify.once('reportPost', () => {
 function bindPostDeleteConfirmOnce() {
     if (!vkify.bindOnce('postDeleteConfirm', bindPostDeleteConfirmOnce)) return;
 
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', (e) => {
         const deleteLink = e.target.closest('a.delete');
         if (!deleteLink || deleteLink.dataset.deleting) return;
 
         const href = deleteLink.getAttribute('href');
-        if (!href || !href.includes('/wall')) return;
+        if (!href?.includes('/wall')) return;
 
         e.preventDefault();
         e.stopPropagation();
@@ -751,7 +1228,8 @@ function bindPostDeleteConfirmOnce() {
                     postElement.appendChild(contentWrapper);
                     
                     LoaderUtils.show(postElement, { className: 'vkify-post-loader' });
-                    await fetch(href, { method: 'POST' });
+                    const deleteRes = await ky.post(href, { throwHttpErrors: false });
+                    if (!deleteRes.ok && !deleteRes.redirected) throw new Error('Delete failed');
 
                     const contentDiv = contentWrapper.querySelector('.post-content') || contentWrapper;
                     const originalHeight = postElement.offsetHeight;
@@ -819,7 +1297,7 @@ function bindPostDeleteConfirmOnce() {
                     const countEl = document.querySelector('.ui_tab_sel .ui_tab_count');
                     if (countEl) {
                         const count = parseInt(countEl.textContent, 10);
-                        if (!isNaN(count)) countEl.textContent = Math.max(0, count - 1);
+                        if (!Number.isNaN(count)) countEl.textContent = Math.max(0, count - 1);
                     }
                 } catch (err) {
                     console.error('Failed to delete post:', err);
@@ -848,17 +1326,14 @@ function bindPostDeleteConfirmOnce() {
 bindPostDeleteConfirmOnce();
 
 vkify.hook(vkify, 'onPageReady', () => {
-    if (!window.postPopupManager?.currentModal) {
+    if (window.postPopupManager && !window.postPopupManager.currentModal) {
         window.postPopupManager.checkInitialUrl();
-        initSuggestedTabHooksOnce();
         bindPostDeleteConfirmOnce();
     }
 }, 'after');
 
 vkify.once('editMenuLayout', () => {
-    window.__vkifyEditMenuLayout = function(api_post, type, postId) {
-        return renderEditMenuLayout(api_post, type, postId);
-    };
+    window.__vkifyEditMenuLayout = (api_post, type, postId) => renderEditMenuLayout(api_post, type, postId);
 });
 
 function bindPostEditOnce() {
@@ -885,11 +1360,11 @@ function bindPostEditOnce() {
         const id = rawId.split('_');
         const type = post.hasClass('reply') ? 'comment' : 'post';
 
-        if (edit_place.html() == '') {
+        if (edit_place.html() === '') {
             u(editBtn).addClass('lagged');
             try {
-                const params = type == 'post' ? { posts: rawId } : { owner_id: 1, comment_id: id[1] };
-                const api_req = await window.OVKAPI.call(`wall.${type == 'post' ? 'getById' : 'getComment'}`, params);
+                const params = type === 'post' ? { posts: rawId } : { owner_id: 1, comment_id: id[1] };
+                const api_req = await window.OVKAPI.call(`wall.${type === 'post' ? 'getById' : 'getComment'}`, params);
                 const api_post = api_req.items[0];
 
                 edit_place.html(window.__vkifyEditMenuLayout(api_post, type, rawId));
@@ -910,18 +1385,18 @@ function bindPostEditOnce() {
                 }
 
                 api_post.attachments.forEach(att => {
-                    const t = att.type;
-                    let aid = att[t].owner_id + '_' + att[t].id;
-                    if (att[t]?.access_key) aid += '_' + att[t].access_key;
+                    const attType = att.type;
+                    let aid = `${att[attType].owner_id}_${att[attType].id}`;
+                    if (att[attType]?.access_key) aid += `_${att[attType].access_key}`;
 
-                    if (t == 'video' || t == 'photo') {
-                        const preview = t == 'photo' ? att[t].sizes[1].url : att[t].image[0].url;
-                        window.__appendToTextarea({ type: t, preview, id: aid }, edit_place);
-                    } else if (t == 'poll') {
-                        window.__appendToTextarea({ type: t, alignment: 'vertical', html: tr('poll'), id: att[t].id, undeletable: true }, edit_place);
+                    if (attType === 'video' || attType === 'photo') {
+                        const preview = attType === 'photo' ? att[attType].sizes[1].url : att[attType].image[0].url;
+                        window.__appendToTextarea({ type: attType, preview, id: aid }, edit_place);
+                    } else if (attType === 'poll') {
+                        window.__appendToTextarea({ type: attType, alignment: 'vertical', html: tr('poll'), id: att[attType].id, undeletable: true }, edit_place);
                     } else {
-                        const found_block = post.find(`div[data-att_type='${t}'][data-att_id='${aid}']`);
-                        window.__appendToTextarea({ type: t, alignment: 'vertical', html: found_block.html(), id: aid }, edit_place);
+                        const found_block = post.find(`div[data-att_type='${attType}'][data-att_id='${aid}']`);
+                        window.__appendToTextarea({ type: attType, alignment: 'vertical', html: found_block.html(), id: aid }, edit_place);
                     }
                 });
 
@@ -933,19 +1408,26 @@ function bindPostEditOnce() {
                         post_id: id[1],
                         message: edit_place.find('.edit_menu textarea').nodes[0].value
                     };
-                    const nsfw_mark = edit_place.find(`.edit_menu input[name='nsfw']`);
-                    const as_group = edit_place.find(`.edit_menu input[name='as_group']`);
+                    // The nsfw/as_group checkboxes live in a post-opts tooltip that's
+                    // appended to <body> (to avoid being clipped by later posts in the
+                    // feed), so they're not necessarily descendants of edit_place. They
+                    // carry an explicit `form` attribute pointing at this edit form, so
+                    // the form's native `.elements` collection finds them regardless of
+                    // where they currently live in the DOM.
+                    const editForm = edit_place.find('.edit_menu form').nodes[0];
+                    const nsfw_mark = editForm?.elements.namedItem('nsfw') || null;
+                    const as_group = editForm?.elements.namedItem('as_group') || null;
                     const copyright = edit_place.find(`.edit_menu input[name='source']`);
                     const collected_attachments = collect_attachments(edit_place.find('.post-buttons')).join(',');
 
-                    if (nsfw_mark.length > 0) p.explicit = Number(nsfw_mark.nodes[0].checked);
+                    if (nsfw_mark) p.explicit = Number(nsfw_mark.checked);
                     p.attachments = collected_attachments.length < 1 ? 'remove' : collected_attachments;
-                    if (as_group.length > 0 && as_group.nodes[0].checked) p.from_group = 1;
-                    if (copyright.length && copyright.nodes[0].value != 'none') p.copyright = copyright.nodes[0].value;
+                    if (as_group?.checked) p.from_group = 1;
+                    if (copyright.length && copyright.nodes[0].value !== 'none') p.copyright = copyright.nodes[0].value;
 
                     u(ev.target).addClass('lagged');
                     try {
-                        if (type == 'post') {
+                        if (type === 'post') {
                             await window.OVKAPI.call('wall.edit', p);
                         } else {
                             p.comment_id = id[1];
@@ -957,7 +1439,11 @@ function bindPostEditOnce() {
                         return;
                     }
 
-                    const new_post_html = await (await fetch(`/iapi/getPostTemplate/${id[0]}_${id[1]}?type=${type}`, { method: 'POST' })).text();
+                    const new_post_html = await ContentFetcher.request(`/iapi/getPostTemplate/${id[0]}_${id[1]}?type=${type}`, {
+                        method: 'POST',
+                        responseType: 'text',
+                        ajaxQuery: false
+                    });
                     u(ev.target).removeClass('lagged');
                     post.removeClass('editing');
                     post.nodes[0].outerHTML = u(new_post_html).last().outerHTML;
@@ -981,80 +1467,154 @@ function bindPostEditOnce() {
 bindPostEditOnce();
 
 vkify.once('shareAudioPlaylist', () => {
-    window.shareAudioPlaylist = async function (event, owner_id, playlist_id) {
+    window.shareAudioPlaylist = async (event, owner_id, playlist_id) => {
         event.preventDefault();
         event.stopPropagation();
 
-        new CMessageBox({
+        const msg = new CMessageBox({
             title: tr('share'),
             unique_name: 'repost_playlist_modal',
             body: `
-                <div class="messagebox-content-header">
-                    <vkifyloc name="playlist_share_explain"></vkifyloc>
-                </div>
-                <div class='display_flex_column' style='margin-top: 10px;'>
-                    <b>${tr('auditory')}</b>
-
-                    <div class='display_flex_column' style="gap: 2px;padding-left: 1px;">
-                        <label>
-                            <input type="radio" name="repost_type" value="wall" checked>
-                            ${tr("in_wall")}
-                        </label>
-
-                        <label>
-                            <input type="radio" name="repost_type" value="group">
-                            ${tr("in_group")}
-                        </label>
-
-                        <select name="selected_repost_club" style='display:none;'></select>
+                <form id="write">
+                    <div class="messagebox-content-header">
+                        <vkifyloc name="playlist_share_explain"></vkifyloc>
                     </div>
+                    <div class='display_flex_column' style='margin-top: 10px;'>
+                        <b>${tr('auditory')}</b>
 
-                    <b>${tr('your_comment')}</b>
+                        <div class='display_flex_column' style="gap: 4px;padding-left: 1px;">
+                            <label class="radio">
+                                <input type="radio" name="repost_type" value="wall" checked>
+                                <span>${tr("in_wall")}</span>
+                            </label>
 
-                    <div style="padding-left: 1px;">
-                        <input type='hidden' id='repost_attachments'>
-                        <textarea id='repostMsgInput' placeholder='...'></textarea>
+                            <label class="radio">
+                                <input type="radio" name="repost_type" value="group">
+                                <span>${tr("in_group")}</span>
+                            </label>
 
-                        <div id="repost_signs" class='display_flex_column' style='display:none;'>
-                            <label><input type='checkbox' name="asGroup">${tr('post_as_group')}</label>
-                            <label><input type='checkbox' name="signed">${tr('add_signature')}</label>
+                            <select class="dark" name="selected_repost_club" style='display:none; margin-top: 5px; width: 100%;'></select>
+                        </div>
+
+                        <b style="margin-top: 12px; margin-bottom: 6px;">${tr('your_comment')}</b>
+
+                        <div style="padding-left: 1px;">
+                            <textarea id='repostMsgInput' class="dark" placeholder='...' style="width: 100%; box-sizing: border-box; height: 60px; resize: none;"></textarea>
                         </div>
                     </div>
-                </div>
+                    <div class="post-buttons" style="display: block;">
+                        <div class="post-horizontal"></div>
+                        <div class="post-vertical"></div>
+                        ${renderRepostBottomLayout()}
+                    </div>
+                </form>
             `,
-            buttons: [tr('send'), tr('cancel')],
-            callbacks: [
-                async () => {
-                    const { message, type, club_id, as_group, signed, attachments } = getRepostFormData();
-                    const playlistUrl = `${window.location.origin}/playlist${owner_id}_${playlist_id}`;
-                    const postText = message ? `${message}\n\n${playlistUrl}` : playlistUrl;
-
-                    const params = {
-                        message: postText,
-                        owner_id: type === 'group' && club_id !== 0 ? -club_id : window.openvk.current_id
-                    };
-
-                    if (as_group) params.from_group = 1;
-                    if (signed) params.signed = 1;
-                    if (attachments !== '') params.attachments = attachments;
-
-                    try {
-                        const res = await window.OVKAPI.call('wall.post', params);
-                        NewNotification(tr('information_-1'), tr('shared_succ'), null, () => {
-                            window.router.route(`/wall${params.owner_id}_${res.post_id}`);
-                        });
-                    } catch (e) {
-                        console.error(e);
-                        fastError(e.message);
-                    }
-                },
-                Function.noop
-            ]
+            buttons: [],
+            callbacks: []
         });
 
-        u('.ovk-diag-body').attr('style', 'padding: 18px;');
-        bindRepostTypeChange();
-        await setupRepostModal();
+        const node = msg.getNode();
+        u('.ovk-diag-body').attr('style', 'padding: 20px 25px;');
+
+        const updateAttachClub = () => {
+            const type = node.find("input[name='repost_type']:checked").nodes[0]?.value;
+            let clubId = 0;
+            if (type === 'group') {
+                try {
+                    clubId = parseInt(node.find("select[name='selected_repost_club']").nodes[0]?.value, 10) || 0;
+                } catch(_e) {}
+            }
+            node.find('#wallAttachmentMenu a').attr('data-club', clubId);
+        };
+
+        // Bind repost type changes
+        u('.ovk-diag-body').on('change', "input[name='repost_type']", (e) => {
+            const value = e.target.value;
+            const hasClubs = window.openvk.writeableClubs && window.openvk.writeableClubs.items.length > 0;
+            switch(value) {
+                case 'wall':
+                    u('#__vkifyRepostOptsTrigger').attr('style', 'display:none');
+                    u("select[name='selected_repost_club']").attr('style', 'display:none');
+                    break;
+                case 'group':
+                    if (hasClubs) {
+                        u('#__vkifyRepostOptsTrigger').attr('style', 'display:block');
+                        u("select[name='selected_repost_club']").attr('style', 'display:block');
+                    }
+                    break;
+            }
+            updateAttachClub();
+        });
+
+        u('.ovk-diag-body').on('change', "select[name='selected_repost_club']", () => {
+            updateAttachClub();
+        });
+
+        // Bind option changes inside the tooltip
+        node.find('#__vkifyRepostOptsTooltip input[name="asGroup"]').on('change', (e) => {
+            node.find('#__vkifyRepostSignedOpt').attr('style', e.target.checked ? '' : 'display:none');
+        });
+
+        // Bind send button click
+        node.find('#__vkifyRepostSend').on('click', async () => {
+            const message = node.find('#repostMsgInput').nodes[0].value;
+            const type = node.find("input[name='repost_type']:checked").nodes[0].value;
+            let club_id = 0;
+            try {
+                club_id = parseInt(node.find("select[name='selected_repost_club']").nodes[0].selectedOptions[0].value, 10);
+            } catch(_e) {}
+
+            const as_group = node.find('#__vkifyRepostOptsTooltip input[name="asGroup"]').nodes[0]?.checked;
+            const signed = node.find('#__vkifyRepostOptsTooltip input[name="signed"]').nodes[0]?.checked;
+            const attachments = collect_attachments(node.find('.post-buttons')).join(',');
+
+            const playlistUrl = `${window.location.origin}/playlist${owner_id}_${playlist_id}`;
+            const postText = message ? `${message}\n\n${playlistUrl}` : playlistUrl;
+
+            const params = {
+                message: postText,
+                owner_id: type === 'group' && club_id !== 0 ? -club_id : window.openvk.current_id
+            };
+
+            if (as_group) params.from_group = 1;
+            if (signed) params.signed = 1;
+            if (attachments) params.attachments = attachments;
+
+            const sendBtn = node.find('#__vkifyRepostSend').nodes[0];
+            LoaderUtils.showInButton(sendBtn);
+
+            try {
+                const res = await window.OVKAPI.call('wall.post', params);
+                msg.close();
+                NewNotification(tr('information_-1'), tr('shared_succ'), null, () => {
+                    window.router.route(`/wall${params.owner_id}_${res.post_id}`);
+                });
+            } catch (e) {
+                console.error(e);
+                fastError(e.message);
+            } finally {
+                LoaderUtils.restoreButton(sendBtn);
+            }
+        });
+
+        // Initialize clubs list
+        if(!window.openvk.writeableClubs) {
+            window.openvk.writeableClubs = await window.OVKAPI.call('groups.get', {'filter': 'admin', 'count': 100});
+        }
+
+        window.openvk.writeableClubs.items.forEach(club => {
+            u("select[name='selected_repost_club']").append(`<option value='${club.id}'>${ovk_proc_strtr(escapeHtml(club.name), 100)}</option>`);
+        });
+
+        if(window.openvk.writeableClubs.items.length < 1) {
+            u("input[name='repost_type'][value='group']").attr('disabled', 'disabled');
+            u("input[name='repost_type'][value='group']").closest("label").addClass("lagged");
+        }
+
+        // Initialize Tippy tooltips for the opts trigger
+        setTimeout(() => {
+            window.reinitializeTooltips?.(node.nodes[0]);
+        }, 0);
     };
 });
 
@@ -1064,6 +1624,11 @@ function bindWallSearchOnce() {
     const toggleSearchFieldEmptyState = (input) => {
         if (!input) return;
         input.closest('.ui_search')?.classList.toggle('ui_search_field_empty', input.value.length === 0);
+    };
+
+    const resetTabsScrollPosition = (tabs) => {
+        if (!tabs) return;
+        tabs.scrollLeft = 0;
     };
 
     document.addEventListener('click', (e) => {
@@ -1076,7 +1641,10 @@ function bindWallSearchOnce() {
         if (tabs.classList.contains('ui_tabs_search_opened')) return;
 
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         tabs.classList.add('ui_tabs_search_opened');
+        resetTabsScrollPosition(tabs);
         const input = tabs.querySelector('.ui_search_field');
         if (input) input.focus();
     }, true);
@@ -1103,14 +1671,17 @@ function bindWallSearchOnce() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('type') === 'search') {
         const tabs = document.querySelector('#wall_top_tabs');
-        if (tabs) tabs.classList.add('ui_tabs_search_opened');
+        if (tabs) {
+            tabs.classList.add('ui_tabs_search_opened');
+            resetTabsScrollPosition(tabs);
+        }
     }
 }
 
 bindWallSearchOnce();
 
 vkify.once('repostModalLayout', () => {
-    vkify.hook(window, 'repost', (id, repost_type) => {
+    vkify.hook(window, 'repost', (_id, _repost_type) => {
         const dialogBody = u('.ovk-diag-body');
         if (!dialogBody.length) return;
 
@@ -1169,7 +1740,7 @@ const Hb = window.Handlebars;
 const tplMapIcon = `<svg class="map_svg_icon" width="13" height="12" viewBox="0 0 3.4395833 3.175"><g><path d="M 1.7197917 0.0025838216 C 1.1850116 0.0049444593 0.72280427 0.4971031 0.71520182 1.0190592 C 0.70756921 1.5430869 1.7223755 3.1739665 1.7223755 3.1739665 C 1.7223755 3.1739665 2.7249195 1.5439189 2.7243815 0.99632161 C 2.7238745 0.48024825 2.2492929 0.00024648357 1.7197917 0.0025838216 z M 1.7197917 0.52606608 A 0.48526123 0.48526123 0 0 1 2.2050334 1.0113078 A 0.48526123 0.48526123 0 0 1 1.7197917 1.4965495 A 0.48526123 0.48526123 0 0 1 1.23455 1.0113078 A 0.48526123 0.48526123 0 0 1 1.7197917 0.52606608 z " /></g></svg>`;
 
 const postTpl = Hb.compile(
-`<div class="post page_block scroll_node" data-id="{{pretty_id}}">
+`<div class="post page_block scroll_node" data-id="{{pretty_id}}" data-uniqueid="{{pretty_id}}">
     <div class="post_header">
         <a class="post_image" href="{{owner.domain}}">
             <img src="{{owner.photo_50}}" width="50" class="post-avatar">
