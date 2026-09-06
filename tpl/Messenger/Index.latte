@@ -52,7 +52,7 @@
                                                     <img alt="" src="{if str_contains($lastMsg->getSender()->getAvatarURL('miniscule'), 'camera_200.png')}/themepack/vkify16/{$theme->getVersion()}/resource/camera_200.png{else}{$lastMsg->getSender()->getAvatarURL('miniscule')}{/if}">
                                                 </div>
                                             </span>
-                                            <span class="nim-dialog--inner-text">{$lastMsg->getText()|noescape}</span>
+                                            <span class="nim-dialog--inner-text">{$lastMsg->getPreviewText()|noescape}</span>
                                         </span>
                                     </div>
                                 </div>

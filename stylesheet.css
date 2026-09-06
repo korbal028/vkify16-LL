@@ -3958,6 +3958,24 @@ ul.im-page--dcontent {
 .crp-entry--message---text, .messenger-app--messages---message .time {
     color: var(--muted-text-color);
 }
+.messenger-app--messages---message ._content .attachments {
+    width: 100%;
+}
+.messenger-app--messages---message ._content .attachments:not(:empty) {
+    margin-top: 10px;
+}
+.messenger-app--messages---message ._content .attachments>.msg-attach-j * {
+    max-width: 100%;
+}
+.messenger-app--messages---message .msg-actions {
+    display: inline;
+}
+.messenger-app--typing-status {
+    color: var(--muted-text-color);
+    padding: 4px 20px;
+    font-size: 12px;
+    transition: opacity 0.25s;
+}
 .messenger-app--input {
     padding: 12px 20px;
     background-color: var(--module-header-background-color);
