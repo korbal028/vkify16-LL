@@ -17,7 +17,7 @@
                     <li
                         n:class="'nim-dialog nim-dialog_classic scroll_node', $lastMsg->getUnreadState() ? 'nim-dialog--unread'"
                         data-uniqueid="conversation-{$coresp->getId()}"
-                        onmousedown="window.open({$coresp->getURL()}, '_blank').focus();">
+                        onmousedown="window.location.assign({$coresp->getURL()});">
                         {var $recipient = $coresp->getCorrespondents()[1]}
                         <div class="nim-dialog--photo">
                             <div n:class="nim-peer, $recipient->isOnline() ? online">
