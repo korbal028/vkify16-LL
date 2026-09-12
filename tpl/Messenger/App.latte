@@ -204,39 +204,39 @@
                                     <input type="hidden" name="vertical_attachments" value="" autocomplete="off" />
                                     <div class="post-horizontal"></div>
                                     <div class="post-vertical"></div>
-                                    <div style="display: flex;">
+                                    <div class="msg-input-pill">
+                                        <a class="msg-input-pill--attach-trigger" id="msgAttachTrigger" data-tippy-content-id="msgAttachTooltip" data-tippy-append-to="body">
+                                            <svg viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                                        </a>
                                         <textarea
+                                                class="msg-input-pill--textarea"
+                                                rows="1"
                                                 data-bind="value: messageContent, event: { keydown: onTextareaKeyPress, input: onTextareaInput }"
                                                 name="message"
                                                 placeholder="{_enter_message}"></textarea>
-                                        <button type="button" title="{_send}" data-bind="click: sendMessage"></button>
+                                        <button type="button" class="msg-input-pill--send" title="{_send}" data-bind="click: sendMessage"></button>
                                     </div>
-                                    <div id="wallAttachmentMenu" class="page_add_media post-attach-menu">
-                                        <a id="__vkifyPhotoAttachment" class="attach_photo"
-                                           data-tip="simple-black" data-align="bottom-start" data-tiptitle="{_photo}">
+                                    <div class="tippy-menu tippy-content-template" id="msgAttachTooltip">
+                                        <a id="__vkifyPhotoAttachment" class="attach_photo">
                                             <div class="post-attach-menu__icon"></div>
+                                            {_photo}
                                         </a>
-                                        <a id="__vkifyVideoAttachment" class="attach_video"
-                                           data-tip="simple-black" data-align="bottom-start" data-tiptitle="{_video}">
+                                        <a id="__vkifyVideoAttachment" class="attach_video">
                                             <div class="post-attach-menu__icon"></div>
+                                            {_video}
                                         </a>
-                                        <a id="__vkifyAudioAttachment" class="attach_audio"
-                                           data-tip="simple-black" data-align="bottom-start" data-tiptitle="{_audio}">
+                                        <a id="__vkifyAudioAttachment" class="attach_audio">
                                             <div class="post-attach-menu__icon"></div>
+                                            {_audio}
                                         </a>
-                                        <a class="post-attach-menu__trigger" id="msgMoreAttachTrigger" data-tippy-content-id="msgMoreAttachTooltip" data-tippy-append-to="body">
-                                            <vkifyloc name="more" fallback="show_more" />
+                                        <a id="__vkifyDocumentAttachment" class="attach_document">
+                                            <div class="post-attach-menu__icon"></div>
+                                            {_document}
                                         </a>
-                                        <div class="tippy-menu tippy-content-template" id="msgMoreAttachTooltip">
-                                            <a id="__vkifyDocumentAttachment" class="attach_document">
-                                                <div class="post-attach-menu__icon"></div>
-                                                {_document}
-                                            </a>
-                                            <a id="__vkifyNotesAttachment" class="attach_note">
-                                                <div class="post-attach-menu__icon"></div>
-                                                {_note}
-                                            </a>
-                                        </div>
+                                        <a id="__vkifyNotesAttachment" class="attach_note">
+                                            <div class="post-attach-menu__icon"></div>
+                                            {_note}
+                                        </a>
                                     </div>
                                 </form>
                             </div>
