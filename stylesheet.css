@@ -2198,21 +2198,6 @@ table,
     width: 320px;
     max-width: calc(100vw - 32px);
 }
-.emoji-picker__search {
-    width: 100%;
-    box-sizing: border-box;
-    margin: 0 0 6px;
-    padding: 6px 10px;
-    border-radius: var(--tooltip-border-radius, 3px);
-    border: 1px solid var(--border-color);
-    background-color: var(--module-background-color--secondary);
-    color: inherit;
-    font-size: 13px;
-}
-.emoji-picker__search:focus {
-    outline: none;
-    border-color: var(--link-color);
-}
 .emoji-picker__grid {
     max-height: 280px;
     overflow-y: auto;

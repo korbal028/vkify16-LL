@@ -475,28 +475,4 @@ vkify.bindOnce('emojiPicker', () => {
         insertEmoji(btn.closest('.emoji-picker'), btn.textContent);
     });
 
-    document.addEventListener('input', (e) => {
-        const search = e.target.closest ? e.target.closest('.emoji-picker__search') : null;
-        if (!search) return;
-
-        const query = search.value.trim().toLowerCase();
-        const grid = search.closest('.emoji-picker').querySelector('.emoji-picker__grid');
-        const buttons = grid.querySelectorAll('.emoji-picker__emoji');
-        const categories = grid.querySelectorAll('.emoji-picker__category');
-
-        buttons.forEach(btn => {
-            const matches = !query || (btn.dataset.keywords || '').includes(query);
-            btn.hidden = !matches;
-        });
-
-        categories.forEach(cat => {
-            let node = cat.nextElementSibling;
-            let hasVisible = false;
-            while (node && !node.classList.contains('emoji-picker__category')) {
-                if (!node.hidden) hasVisible = true;
-                node = node.nextElementSibling;
-            }
-            cat.hidden = !hasVisible;
-        });
-    });
 });
