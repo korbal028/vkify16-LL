@@ -113,6 +113,11 @@
                                 <div class="post-attach-menu__icon"></div>
                                 {_document}
                             </a>
+                            <a class="attach_emoji" id="emojiTrigger{$textAreaId}"
+                               data-tippy-content-id="emojiPicker{$textAreaId}" data-tippy-append-to="body" data-tippy-trigger="click">
+                                <span class="emoji-trigger-icon">🙂</span>
+                                {_smiles}
+                            </a>
                             {if $isPostComposer}
                                 <a n:if="$notesEnabled" id="__vkifyNotesAttachment" class="attach_note">
                                     <div class="post-attach-menu__icon"></div>
@@ -131,6 +136,9 @@
                                     {_geo_place}
                                 </a>
                             {/if}
+                        </div>
+                        <div class="tippy-menu tippy-content-template emoji-picker" id="emojiPicker{$textAreaId}">
+                            <div class="emoji-picker__grid"></div>
                         </div>
                     {elseif $isPostComposer}
                         <a id="__vkifyPhotoAttachment" class="attach_photo"
@@ -194,6 +202,13 @@
                            n:attr="data-club => $clubDataId">
                             <div class="post-attach-menu__icon"></div>
                         </a>
+                        <a class="attach_emoji" id="emojiTrigger{$textAreaId}"
+                           data-tippy-content-id="emojiPicker{$textAreaId}" data-tippy-append-to="body" data-tippy-trigger="click">
+                            <span class="emoji-trigger-icon">🙂</span>
+                        </a>
+                        <div class="tippy-menu tippy-content-template emoji-picker" id="emojiPicker{$textAreaId}">
+                            <div class="emoji-picker__grid"></div>
+                        </div>
                         <a n:if="$docsEnabled" id="__vkifyDocumentAttachment" class="attach_document"
                            data-tip="simple-black" data-align="bottom-start" data-tiptitle="{_document}"
                            n:attr="data-club => $clubDataRealId">
