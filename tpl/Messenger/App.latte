@@ -308,6 +308,14 @@
                 this.lastTypingSentAt = 0;
 
                 this._loadHistory();
+                // Если после первой подгрузки список сообщений всё ещё короче видимой
+                // области - у контейнера нет прокрутки, и событие "scroll" (от которого
+                // зависит пагинация вверх) никогда не возникнет, так что достаём историю,
+                // пока не появится реальная прокрутка или пока она не закончится
+                let safety = 20;
+                while(this.appEl.scrollHeight <= this.appEl.clientHeight && safety-- > 0) {
+                    if(this._loadHistory() === 0) break;
+                }
                 this._setupPolling();
                 this.appEl.scrollTop = this.appEl.scrollHeight;
             }
@@ -327,6 +335,7 @@
                 if(this.newestId === 0 && messages.length > 0) this.newestId = messages[0].uuid;
 
                 this.prependMessages(messages);
+                return messages.length;
             }
 
             // Короткий поллинг вместо long-poll: раз в несколько секунд опрашиваем /im/api/sync
