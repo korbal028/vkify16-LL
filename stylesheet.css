@@ -2180,14 +2180,20 @@ table,
     align-items: center;
 }
 .emoji-trigger-icon {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 22px;
     height: 22px;
-    line-height: 22px;
-    text-align: center;
-    font-size: 17px;
     margin-right: 4px;
+    color: var(--muted-text-color, #828a99);
     opacity: 0.7;
+}
+.emoji-trigger-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    pointer-events: none;
 }
 .attach_emoji:hover .emoji-trigger-icon,
 .attach_emoji[aria-expanded="true"] .emoji-trigger-icon {
