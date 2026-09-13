@@ -448,6 +448,26 @@ vkify.bindOnce('emojiPicker', () => {
         populateGrids(document);
     });
 
+    // onPageReady покрывает только SPA-переходы по роутеру. Composer'ы, которые
+    // подгружаются точечно через AJAX (например форма комментария под конкретным
+    // постом) добавляются в DOM в обход этого хука - как и tooltips.js в
+    // setupTooltipObserver(), слушаем реальные мутации DOM и досеваем сетку туда,
+    // где её ещё не было.
+    vkify.observeDOM((mutations) => {
+        let found = false;
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                if ((node.matches && node.matches('.emoji-picker__grid')) || (node.querySelector && node.querySelector('.emoji-picker__grid'))) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (found) populateGrids(document);
+    }, { filter: m => m.type === 'childList' && m.addedNodes.length > 0 });
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.emoji-picker__emoji');
         if (!btn) return;
