@@ -4317,6 +4317,10 @@ ul.im-page--dcontent {
     border-color: var(--border-color);
     border-radius: var(--module-border-radius);
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--header-height) - 15px);
+    overflow: hidden;
 }
 .messenger-app--header,
 .messenger-app-header--actions {
@@ -4390,9 +4394,17 @@ ul.im-page--dcontent {
     cursor: pointer;
 }
 
+.messenger-app--header {
+    flex-shrink: 0;
+}
 .messenger-app--messages {
     padding: 0;
-    height: calc(100vh - var(--header-height) - 15px - 49px - 65px);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+.messenger-app--input {
+    flex-shrink: 0;
 }
 .messenger-app--typing-status {
     color: var(--muted-text-color);
