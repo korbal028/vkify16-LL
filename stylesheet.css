@@ -2227,19 +2227,26 @@ table,
     padding: 6px 4px 2px;
 }
 .emoji-picker__emoji {
+    display: inline-block;
     width: 32px;
     height: 32px;
     font-size: 20px;
-    line-height: 32px;
+    line-height: 32px !important;
     text-align: center;
-    background: none;
-    border: 0;
+    background: none !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
     border-radius: 4px;
     cursor: pointer;
-    padding: 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    appearance: none;
+    -webkit-appearance: none;
 }
 .emoji-picker__emoji:hover {
-    background-color: var(--module-background-color--secondary, rgba(128, 128, 128, 0.15));
+    background-color: var(--module-background-color--secondary, rgba(128, 128, 128, 0.15)) !important;
 }
 
 .post-upload,

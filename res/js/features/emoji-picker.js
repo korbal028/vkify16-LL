@@ -400,20 +400,23 @@ vkify.bindOnce('emojiPicker', () => {
         });
     }
 
-    function resolveForm(el) {
-        if (!el) return null;
-        const direct = el.closest('form');
+    function resolveForm(panel) {
+        if (!panel) return null;
+
+        // Панель может в любой момент лежать либо на исходном месте в форме,
+        // либо быть перенесена tooltips.js внутрь .tippy-box в document.body -
+        // в обоих случаях id самой панели ("emojiPicker<N>") не меняется, пока
+        // тултип не уничтожен, поэтому проще и надёжнее найти по нему исходный
+        // триггер ("emojiTrigger<N>", он всегда остаётся на своём месте в форме),
+        // чем разбираться, куда именно её сейчас перенёс tippy.
+        const direct = panel.closest('form');
         if (direct) return direct;
 
-        const tippyBox = el.closest('.tippy-box');
-        if (tippyBox) {
-            const contentId = tippyBox.getAttribute('data-tippy-content-id');
-            if (contentId) {
-                const escaped = (window.CSS && window.CSS.escape) ? window.CSS.escape(contentId) : contentId;
-                const trigger = document.querySelector('[data-tippy-content-id="' + escaped + '"]:not(.tippy-box)');
-                if (trigger) return trigger.closest('form');
-            }
+        if (panel.id && panel.id.indexOf('emojiPicker') === 0) {
+            const trigger = document.getElementById(panel.id.replace('emojiPicker', 'emojiTrigger'));
+            if (trigger) return trigger.closest('form');
         }
+
         return null;
     }
 
