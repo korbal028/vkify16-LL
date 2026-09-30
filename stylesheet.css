@@ -4595,6 +4595,12 @@ ul.im-page--dcontent {
     border-radius: 50%;
     height: 40px;
     width: 40px;
+    /* .messenger-app--input не задаёт align-items, поэтому браузер по умолчанию
+       прижимает элемент фиксированной высоты к началу (верху) кросс-оси - пока
+       вложений нет, высота строки ~= высоте аватарки и это незаметно, но как
+       только .post-horizontal/.post-vertical добавляют превью и строка растёт,
+       аватарка остаётся у верха вместо того чтобы стоять рядом с полем ввода. */
+    align-self: flex-end;
 }
 .messenger-app--input---messagebox {
     width: 100%;
