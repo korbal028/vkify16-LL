@@ -4612,7 +4612,7 @@ ul.im-page--dcontent {
    размеров - картинка сжималась до маленького квадрата 80x63. В классической
    теме превью вложения крупное и стоит отдельной полосой над строкой ввода -
    повторяем это здесь. */
-.messenger-app--input---messagebox .post-horizontal {
+.messenger-app--input---messagebox .post-horizontal:not(:empty) {
     padding-bottom: 8px;
 }
 .messenger-app--input---messagebox .post-horizontal .upload-item {
