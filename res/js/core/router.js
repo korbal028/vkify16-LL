@@ -559,6 +559,17 @@ window.router = new class Router {
     }
 };
 
+// Для мест, где переход сделан не через <a> (и поэтому не ловится глобальным
+// click-перехватчиком ниже), например onmousedown на строке диалога в списке
+// сообщений - те же проверки, что и у обычной ссылки, с фолбэком на обычный переход.
+window.vkifyNavigate = function (url) {
+    if (window.router && window.router.checkUrl(url)) {
+        window.router.route({ url });
+    } else {
+        window.location.assign(url);
+    }
+};
+
 u(document).on('click', 'a', async (e) => {
     if (e.defaultPrevented) {
         console.log('AJAX | Skipping because default is prevented');
