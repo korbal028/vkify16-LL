@@ -4607,6 +4607,24 @@ ul.im-page--dcontent {
     padding: 0 0 0 15px;
     display: flex;
 }
+/* Тема не наследует стили базового движка (inherits_master: false), поэтому
+   .post-horizontal .upload-item внутри мессенджера остаётся почти без своих
+   размеров - картинка сжималась до маленького квадрата 80x63. В классической
+   теме превью вложения крупное и стоит отдельной полосой над строкой ввода -
+   повторяем это здесь. */
+.messenger-app--input---messagebox .post-horizontal {
+    padding-bottom: 8px;
+}
+.messenger-app--input---messagebox .post-horizontal .upload-item {
+    height: 100px;
+    min-height: 100px;
+}
+.messenger-app--input---messagebox .post-horizontal .upload-item img {
+    width: auto;
+    height: 100px;
+    max-height: 100px;
+    border-radius: 8px;
+}
 .messenger-app--input---messagebox textarea {
     width: 100%;
     min-height: 38px;
