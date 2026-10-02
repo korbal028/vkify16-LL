@@ -510,6 +510,33 @@
                                     </div>
                                 </div>
                                 <div class="form_field">
+                                    <div class="form_label">{_ui_settings_notification_sound}</div>
+                                    <div class="form_data">
+                                        <select name="notification_sound" id="notification_sound_select">
+                                            <option value="bell" {if $user->getNotificationSound() == 'bell'}selected{/if}>{_ui_settings_notification_sound_bell} ({_default})</option>
+                                            <option value="skype" {if $user->getNotificationSound() == 'skype'}selected{/if}>Skype</option>
+                                            <option value="icq" {if $user->getNotificationSound() == 'icq'}selected{/if}>ICQ</option>
+                                            <option value="lain_msg" {if $user->getNotificationSound() == 'lain_msg'}selected{/if}>NEW MESSAGE</option>
+                                            <option value="konata" {if $user->getNotificationSound() == 'konata'}selected{/if}>Konata</option>
+                                            <option value="mambo" {if $user->getNotificationSound() == 'mambo'}selected{/if}>Mambo</option>
+                                            <option value="lain_mail" {if $user->getNotificationSound() == 'lain_mail'}selected{/if}>Lain has new mail</option>
+                                        </select>
+                                        <a href="javascript:void(0)" id="notification_sound_preview" style="margin-left: 8px;">{_ui_settings_notification_sound_preview}</a>
+                                    </div>
+                                </div>
+                                <script>
+                                    (function() {
+                                        var preview = document.getElementById('notification_sound_preview');
+                                        var select  = document.getElementById('notification_sound_select');
+                                        if (!preview || !select) return;
+                                        preview.addEventListener('click', function() {
+                                            if (typeof window.previewNotifSound === 'function') {
+                                                window.previewNotifSound(select.value);
+                                            }
+                                        });
+                                    })();
+                                </script>
+                                <div class="form_field">
                                     <div class="form_label"></div>
                                     <div class="form_data" dir="auto">
                                         <label class="checkbox"><input type="checkbox" name="theme_for_session" value="1"><span>{_apply_style_for_this_device}</span></label>
