@@ -24,8 +24,8 @@
     if (!isset($GLOBALS["__ovk_managed_clubs"])) {
         $GLOBALS["__ovk_managed_clubs"] = (!is_null($thisUser ?? null)) ? iterator_to_array($thisUser->getClubs(1, true, 1000)) : [];
     }
+    $managedClubs = $GLOBALS["__ovk_managed_clubs"];
 }
-{var $managedClubs = $GLOBALS["__ovk_managed_clubs"]}
 {var $showCommentAsGroup = !$isPostComposer && !is_null($thisUser ?? NULL) && sizeof($managedClubs) > 0}
 {var $commentDefaultClub = $showCommentAsGroup ? ($canModifyClub ? $club : $managedClubs[0]) : null}
 
