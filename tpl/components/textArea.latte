@@ -20,7 +20,14 @@
 {var $clubDataId = $canModifyClub ? $club->getId() : null}
 {var $clubDataRealId = $canModifyClub ? $club->getRealId() : null}
 {var $showGroupPostOpts = $isPostComposer && $canModifyClub && ($owner ?? 0) < 0}
-{var $showCommentAsGroup = !$isPostComposer && $canModifyClub}
+{php
+    if (!isset($GLOBALS["__ovk_managed_clubs"])) {
+        $GLOBALS["__ovk_managed_clubs"] = (!is_null($thisUser ?? null)) ? iterator_to_array($thisUser->getClubs(1, true, 1000)) : [];
+    }
+}
+{var $managedClubs = $GLOBALS["__ovk_managed_clubs"]}
+{var $showCommentAsGroup = !$isPostComposer && !is_null($thisUser ?? NULL) && sizeof($managedClubs) > 0}
+{var $commentDefaultClub = $showCommentAsGroup ? ($canModifyClub ? $club : $managedClubs[0]) : null}
 
 <div id="write" class="model_content_textarea">
     <form id="write-form-{$textAreaId}" action="{$route}" method="post" enctype="multipart/form-data" style="margin:0;">
@@ -225,8 +232,22 @@
                                     <input type="checkbox" name="as_group" form="write-form-{$textAreaId}" onchange="window.onWallAsGroupClick(this)" />
                                     <span>{_comment_as_group}</span>
                                 </label>
+                                {if sizeof($managedClubs) > 1}
+                                    <a href="javascript:void(0)" class="comment-group-picker-gear" onclick="openCommentGroupPicker(this)" title="{_choose_community}" style="display:inline-block; margin-top:4px; text-decoration:none;">⚙ <span class="comment-group-picker-label">({$commentDefaultClub->getName()})</span></a>
+                                {/if}
+                                <input type="hidden" name="group_id" form="write-form-{$textAreaId}" value="{$commentDefaultClub->getId()}" class="comment-as-group-id" />
                             </div>
                         </div>
+                        {php
+                            if (!isset($GLOBALS["__ovk_mc_rendered"]) && sizeof($managedClubs) > 1) {
+                                $GLOBALS["__ovk_mc_rendered"] = true;
+                                $__mc = [];
+                                foreach ($managedClubs as $mc) {
+                                    $__mc[] = ["id" => $mc->getId(), "name" => $mc->getName(), "avatar" => $mc->getAvatarUrl("miniscule")];
+                                }
+                                echo "<script>window.__ovkManagedClubs = " . json_encode($__mc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ";</script>";
+                            }
+                        }
                     {/if}
                 </div>
 
