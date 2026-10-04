@@ -233,7 +233,10 @@
                                     <span>{_comment_as_group}</span>
                                 </label>
                                 {if sizeof($managedClubs) > 1}
-                                    <a href="javascript:void(0)" class="comment-group-picker-gear" onclick="openCommentGroupPicker(this)" title="{_choose_community}" style="display:inline-block; margin-top:4px; text-decoration:none;">⚙ <span class="comment-group-picker-label">({$commentDefaultClub->getName()})</span></a>
+                                    <a href="javascript:void(0)" class="comment-group-picker-gear" onclick="openCommentGroupPicker(this)" title="{_choose_community}" style="display:inline-flex; align-items:center; gap:6px; margin-top:4px; text-decoration:none;">
+                                        <span class="common_icon" style="background-position:0 -60px; display:inline-block; flex-shrink:0;"></span>
+                                        <span class="comment-group-picker-label">({$commentDefaultClub->getName()})</span>
+                                    </a>
                                 {/if}
                                 <input type="hidden" name="group_id" form="write-form-{$textAreaId}" value="{$commentDefaultClub->getId()}" class="comment-as-group-id" />
                             </div>
