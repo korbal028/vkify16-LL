@@ -1,14 +1,6 @@
-/**
- * Modern (Unicode) emoji picker for the post/comment composer.
- *
- * Inserted characters are plain Unicode emoji - the engine already renders
- * them as nice cross-platform images via TRichText::formatEmojis(), so no
- * server-side changes are needed here, this is purely the picker UI.
- */
 vkify.bindOnce('emojiPicker', () => {
 
     const EMOJI = [
-        // Смайлы и эмоции
         { e: '😀', k: 'smile grin happy', c: 'Смайлы и эмоции' },
         { e: '😃', k: 'smile happy joy', c: 'Смайлы и эмоции' },
         { e: '😄', k: 'smile happy laugh', c: 'Смайлы и эмоции' },
@@ -106,7 +98,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '👽', k: 'alien ufo', c: 'Смайлы и эмоции' },
         { e: '🤖', k: 'robot', c: 'Смайлы и эмоции' },
 
-        // Жесты и люди
         { e: '👋', k: 'wave hello hi', c: 'Жесты и люди' },
         { e: '🤚', k: 'raised back hand', c: 'Жесты и люди' },
         { e: '🖐️', k: 'hand fingers splayed', c: 'Жесты и люди' },
@@ -150,7 +141,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '👴', k: 'old man grandpa', c: 'Жесты и люди' },
         { e: '👵', k: 'old woman grandma', c: 'Жесты и люди' },
 
-        // Сердца
         { e: '❤️', k: 'red heart love', c: 'Сердца' },
         { e: '🧡', k: 'orange heart', c: 'Сердца' },
         { e: '💛', k: 'yellow heart', c: 'Сердца' },
@@ -171,7 +161,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '💝', k: 'heart gift', c: 'Сердца' },
         { e: '💟', k: 'heart decoration', c: 'Сердца' },
 
-        // Животные и природа
         { e: '🐶', k: 'dog puppy', c: 'Животные и природа' },
         { e: '🐱', k: 'cat kitten', c: 'Животные и природа' },
         { e: '🐭', k: 'mouse', c: 'Животные и природа' },
@@ -232,7 +221,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '💧', k: 'droplet water', c: 'Животные и природа' },
         { e: '🌊', k: 'wave ocean', c: 'Животные и природа' },
 
-        // Еда и напитки
         { e: '🍏', k: 'apple green', c: 'Еда и напитки' },
         { e: '🍎', k: 'apple red', c: 'Еда и напитки' },
         { e: '🍌', k: 'banana', c: 'Еда и напитки' },
@@ -269,7 +257,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '🥂', k: 'cheers champagne', c: 'Еда и напитки' },
         { e: '🍾', k: 'champagne bottle', c: 'Еда и напитки' },
 
-        // Активности
         { e: '⚽', k: 'soccer football', c: 'Активности' },
         { e: '🏀', k: 'basketball', c: 'Активности' },
         { e: '🏈', k: 'american football', c: 'Активности' },
@@ -293,7 +280,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '🎨', k: 'palette art', c: 'Активности' },
         { e: '🎬', k: 'clapper movie', c: 'Активности' },
 
-        // Путешествия
         { e: '🚗', k: 'car', c: 'Путешествия' },
         { e: '🚕', k: 'taxi', c: 'Путешествия' },
         { e: '🚌', k: 'bus', c: 'Путешествия' },
@@ -319,7 +305,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '🏖️', k: 'beach', c: 'Путешествия' },
         { e: '🏝️', k: 'island desert', c: 'Путешествия' },
 
-        // Объекты
         { e: '💡', k: 'bulb idea light', c: 'Объекты' },
         { e: '🔦', k: 'flashlight', c: 'Объекты' },
         { e: '🕯️', k: 'candle', c: 'Объекты' },
@@ -353,7 +338,6 @@ vkify.bindOnce('emojiPicker', () => {
         { e: '🎊', k: 'confetti ball', c: 'Объекты' },
         { e: '🔔', k: 'bell notification', c: 'Объекты' },
 
-        // Символы
         { e: '✅', k: 'check mark done', c: 'Символы' },
         { e: '❌', k: 'cross wrong', c: 'Символы' },
         { e: '❗', k: 'exclamation warning', c: 'Символы' },
@@ -390,9 +374,6 @@ vkify.bindOnce('emojiPicker', () => {
         return gridHtml;
     }
 
-    // Заполняем сетку сразу при готовности страницы (а не лениво по показу тултипа) -
-    // так надёжнее: не завязано на то, в какой момент tooltips.js перенесёт шаблон
-    // внутрь .tippy-box, и работает одинаково для всех уже отрисованных композеров.
     function populateGrids(container) {
         (container || document).querySelectorAll('.emoji-picker__grid:not([data-rendered])').forEach(grid => {
             grid.dataset.rendered = '1';
@@ -403,12 +384,6 @@ vkify.bindOnce('emojiPicker', () => {
     function resolveForm(panel) {
         if (!panel) return null;
 
-        // Панель может в любой момент лежать либо на исходном месте в форме,
-        // либо быть перенесена tooltips.js внутрь .tippy-box в document.body -
-        // в обоих случаях id самой панели ("emojiPicker<N>") не меняется, пока
-        // тултип не уничтожен, поэтому проще и надёжнее найти по нему исходный
-        // триггер ("emojiTrigger<N>", он всегда остаётся на своём месте в форме),
-        // чем разбираться, куда именно её сейчас перенёс tippy.
         const direct = panel.closest('form');
         if (direct) return direct;
 
@@ -448,11 +423,6 @@ vkify.bindOnce('emojiPicker', () => {
         populateGrids(document);
     });
 
-    // onPageReady покрывает только SPA-переходы по роутеру. Composer'ы, которые
-    // подгружаются точечно через AJAX (например форма комментария под конкретным
-    // постом) добавляются в DOM в обход этого хука - как и tooltips.js в
-    // setupTooltipObserver(), слушаем реальные мутации DOM и досеваем сетку туда,
-    // где её ещё не было.
     vkify.observeDOM((mutations) => {
         let found = false;
         for (const mutation of mutations) {

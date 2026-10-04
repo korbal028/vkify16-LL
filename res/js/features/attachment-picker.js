@@ -1539,10 +1539,6 @@ vkify.bindOnce('pickerButtons', () => {
         let form = u(el).closest('form');
         if (form.length) return form;
 
-        // data-tippy-content-id вешается tooltips.js на instance.popper - это внешняя
-        // обёртка вокруг .tippy-box (см. onShow в tooltips.js), а не сам .tippy-box.
-        // closest('.tippy-box') находил внутренний блок без этого атрибута и всегда
-        // получал null - ищем ближайшего предка, у которого атрибут реально есть.
         const tippyBox = el.closest?.('[data-tippy-content-id]');
         if (tippyBox) {
             const contentId = tippyBox.getAttribute('data-tippy-content-id');

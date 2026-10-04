@@ -307,8 +307,8 @@
                 this.ko       = ko.applyBindings(new MessengerViewModel(messages));
                 this.appEl    = document.querySelector(".messenger-app--messages");
                 this.typeEl   = document.querySelector(".messenger-app--typing-status");
-                this.offset   = 0; // курсор для обратной пагинации истории (самое старое загруженное id)
-                this.newestId = 0; // курсор для поллинга новых сообщений (самое новое известное id)
+                this.offset   = 0;
+                this.newestId = 0;
                 this.lastSync = Math.floor(Date.now() / 1000);
 
                 this.typingTimer     = null;
@@ -316,10 +316,6 @@
                 this.lastTypingSentAt = 0;
 
                 this._loadHistory();
-                // Если после первой подгрузки список сообщений всё ещё короче видимой
-                // области - у контейнера нет прокрутки, и событие "scroll" (от которого
-                // зависит пагинация вверх) никогда не возникнет, так что достаём историю,
-                // пока не появится реальная прокрутка или пока она не закончится
                 let safety = 20;
                 while(this.appEl.scrollHeight <= this.appEl.clientHeight && safety-- > 0) {
                     if(this._loadHistory() === 0) break;
@@ -337,18 +333,12 @@
                 let lastMessage = messages[messages.length - 1];
                 if(typeof lastMessage !== "undefined") this.offset = lastMessage.uuid;
 
-                // newestId выставляется только один раз, при первой (самой свежей) подгрузке —
-                // последующие вызовы _loadHistory() (пагинация вверх) отдают более старые сообщения
-                // и не должны сдвигать курсор поллинга назад
                 if(this.newestId === 0 && messages.length > 0) this.newestId = messages[0].uuid;
 
                 this.prependMessages(messages);
                 return messages.length;
             }
 
-            // Короткий поллинг вместо long-poll: раз в несколько секунд опрашиваем /im/api/sync
-            // на предмет новых/изменённых/удалённых сообщений и статуса "печатает". Никакого
-            // блокирующего соединения — каждый запрос почти мгновенный и не держит воркер сервера.
             _setupPolling(intervalMs = 3500) {
                 let poll = () => {
                     let xhr = new XMLHttpRequest();
@@ -365,8 +355,6 @@
                             if(data) {
                                 (data.messages || []).forEach(message => {
                                     if(this.newestId >= message.uuid) return;
-                                    // подстраховка от гонки, если запрос на отправку своего же
-                                    // сообщения ещё не успел продвинуть newestId к моменту этого тика
                                     if(window.messages().some(m => m.uuid === message.uuid)) return;
                                     this.addMessage(message);
                                     this.newestId = message.uuid;
@@ -403,7 +391,6 @@
                         this.pollTimer = setTimeout(poll, intervalMs);
                     };
                     xhr.onerror = () => {
-                        // сетевая ошибка — не долбим сервер в цикле, ждём подольше перед повтором
                         this.pollTimer = setTimeout(poll, intervalMs * 2);
                     };
                     xhr.send();
@@ -427,7 +414,6 @@
                 }
             }
 
-            // Троттлинг: шлём не чаще раза в 3 секунды, пока юзер печатает, а не на каждый keystroke
             sendTypingActivity() {
                 let now = Date.now();
                 if(this.lastTypingSentAt && now - this.lastTypingSentAt < 3000) return;
@@ -693,8 +679,6 @@
                     console.debug("Message sent, updating view.");
                     let sentMessage = JSON.parse(xhr.responseText);
                     that._patchMessage(tempId, sentMessage);
-                    // без этого следующий тик поллинга видит только что отправленное сообщение
-                    // как "новое" (id > newestId) и добавляет его повторно
                     if(sentMessage.uuid > that.newestId) that.newestId = sentMessage.uuid;
 
                     if(writeForm) {
