@@ -86,6 +86,9 @@ let locales = {
 		link_copied_time: "Video link at current time copied. Note that currently this link will only work in this themepack",
 		something_not_right: "Something isn't right.",
 		themepack_warn: "Please set \"VKify16\" in the <a href=\"/settings?act=interface\">styles settings</a> again, or <a href=\"#\" onclick=\"location.reload(); return false;\">reload the page</a> if you just switched to it.",
+		im_wide_mode: "Wide screen mode",
+		im_wide_setting: "Wide screen messages",
+		im_select_dialog: "Select a conversation",
 	},
 	ru: {
 		language: "Язык",
@@ -175,6 +178,9 @@ let locales = {
 		link_copied_time: "Ссылка на видео в текущее время скопирована. Заметьте, что пока что эта ссылка будет работать только в этой теме",
 		something_not_right: "Что-то не то.",
 		themepack_warn: "Пожалуйста, выберите тему «VKify16» в <a href=\"/settings?act=interface\">настройках оформления</a> заново или <a href=\"#\" onclick=\"location.reload(); return false;\">обновите страницу</a>, если вы только что переключились на нее.",
+		im_wide_mode: "Широкоэкранный режим",
+		im_wide_setting: "Широкоэкранный режим сообщений",
+		im_select_dialog: "Выберите диалог",
 	},
 	uk: {
 		language: "Мова",
@@ -264,6 +270,9 @@ let locales = {
 		link_copied_time: "Посилання на відео у поточний час скопійовано. Зауважте, що поки що ця ссылка буде працювати тільки в цій темі",
 		something_not_right: "Щось не так.",
 		themepack_warn: "Будь ласка, оберіть тему «VKify16» в <a href=\"/settings?act=interface\">налаштуваннях оформлення</a> заново або <a href=\"#\" onclick=\"location.reload(); return false;\">оновіть сторінку</a>, якщо ви щойно переключилися на неї.",
+		im_wide_mode: "Широкоекранний режим",
+		im_wide_setting: "Широкоекранний режим повідомлень",
+		im_select_dialog: "Оберіть діалог",
 	},
 	kk: {
 		language: "Тіл",
@@ -352,6 +361,9 @@ let locales = {
 		link_copied_time: "Бейне сілтемесі ағымдағы уақытта көшірілді. Бұл сілтеме әзірше тек осы стильде жұмыс істейтінін ескеріңіз",
 		something_not_right: "Бірдеңе дұрыс емес.",
 		themepack_warn: "<a href=\"/settings?act=interface\">Баптау бетінде</a> «VKify16» стилін қайта таңдаңыз, немесе, стильді енді ғана ауыстырған болсаңыз, <a href=\"#\" onclick=\"location.reload(); return false;\">бетті қайта жүктеңіз</a>.",
+		im_wide_mode: "Кең экран режимі",
+		im_wide_setting: "Хабарламалардың кең экран режимі",
+		im_select_dialog: "Диалогты таңдаңыз",
 	},
 };
 

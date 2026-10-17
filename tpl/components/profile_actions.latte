@@ -8,7 +8,12 @@
 					{if $user->getPrivacyPermission('messages.write', $thisUser)}
 						<div class="profile_msg_split">
 							<div class="cut_left">
-								<a class="button button_blue profile_btn_cut_left profile_action_btn button_wide" href="/im?sel={$user->getId()}">
+								<a class="button button_blue profile_btn_cut_left profile_action_btn button_wide js-send-message" href="/im?sel={$user->getId()}"
+									data-id="{$user->getId()}"
+									data-name="{$user->getCanonicalName()}"
+									data-url="{$user->getURL()}"
+									data-avatar="{$user->getAvatarUrl('normal')}"
+									data-online="{$user->isOnline() ? tr('online') : ($user->isFemale() ? tr('was_online_f') : tr('was_online_m')) . ' ' . $user->getOnline()}">
 									{_send_message}
 								</a>
 							</div>
@@ -24,7 +29,12 @@
 						</a>
 					{/if}
 				{else}
-					<a class="button button_blue button_wide" n:if="$user->getPrivacyPermission('messages.write', $thisUser)" href="/im?sel={$user->getId()}">
+					<a n:if="$user->getPrivacyPermission('messages.write', $thisUser)" class="button button_blue button_wide js-send-message" href="/im?sel={$user->getId()}"
+						data-id="{$user->getId()}"
+						data-name="{$user->getCanonicalName()}"
+						data-url="{$user->getURL()}"
+						data-avatar="{$user->getAvatarUrl('normal')}"
+						data-online="{$user->isOnline() ? tr('online') : ($user->isFemale() ? tr('was_online_f') : tr('was_online_m')) . ' ' . $user->getOnline()}">
 						{_send_message}
 					</a>
 				{/if}

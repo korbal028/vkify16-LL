@@ -651,7 +651,7 @@ document.addEventListener('click', (event) => {
     if (!tooltipBox) return;
 
     const themeTokens = (tooltipBox.dataset.theme?.trim() ?? '').split(/\s+/);
-    const persistentThemes = ['musicpopup', 'dismissable'];
+    const persistentThemes = ['musicpopup', 'dismissable', 'emoji'];
     if (!persistentThemes.some(t => themeTokens.includes(t))) {
         tippy.hideAll({ duration: 0.25 });
     }

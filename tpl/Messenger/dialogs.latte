@@ -1,0 +1,510 @@
+{* список диалогов: на странице /im и в левой панели широкоэкранного режима *}
+{var $activeSel = $activeSel ?? null}
+{var $imDialogTabs = [
+    ['url' => '/im', 'title' => 'all_messages', 'active' => !$isArchive],
+    ['url' => '/im/archive', 'title' => 'messenger_archive', 'active' => $isArchive],
+]}
+{var $imSavedLink = '<a href="/im?sel=' . $thisUser->getId() . '" class="im-page--saved">' . htmlspecialchars(tr('saved_messages')) . '</a>'}
+
+<div class="im-dialogs" data-archive="{(int) $isArchive}" data-active="{$activeSel}">
+    {include "../components/page_tabs_header.latte", tabs => $imDialogTabs, id => 'im_tabs', extra => $imSavedLink}
+
+    <div class="im-dialogs--body">
+        {if sizeof($corresps) > 0}
+            <ul class="im-page--dcontent scroll_container">
+                {include "entries.latte", corresps => $corresps, dialogSettings => $dialogSettings, thisUser => $thisUser}
+            </ul>
+        {else}
+            {include "../components/content_error.latte", description => $isArchive ? tr('messenger_archive_empty') : tr('no_messages')}
+        {/if}
+    </div>
+
+    <div class="im-dialogs--footer">
+        {include "wide_toggle.latte"}
+    </div>
+</div>
+<div class="im-layout--resizer"></div>
+
+<script>
+    // граница между списком и чатом в широкоэкранном режиме, как в телеграме
+    (() => {
+        const layout = document.querySelector(".im-layout");
+        const handle = layout?.querySelector(".im-layout--resizer");
+        const side   = layout?.querySelector(".im-layout--side");
+        if(!handle || !side) return;
+
+        const DEFAULT = 290, MIN = 220, COMPACT = 72, SNAP = 160;
+        const maxWidth = () => Math.max(MIN, Math.min(460, layout.clientWidth - 380));
+
+        // уже SNAP список схлопывается до аватарок
+        const apply = width => {
+            const compact = width < SNAP;
+            const result  = compact ? COMPACT : Math.min(Math.max(width, MIN), maxWidth());
+            layout.classList.toggle("im-layout_compact", compact);
+            layout.style.setProperty("--im-side-width", result + "px");
+            return result;
+        };
+
+        const save = width => {
+            document.cookie = `vkify16_im_side=${ width }; path=/; max-age=31536000; SameSite=Lax`;
+            document.dispatchEvent(new CustomEvent("im:layout", { detail: { resize: true } }));
+        };
+
+        let drag = null;
+        handle.addEventListener("pointerdown", e => {
+            if(e.button !== 0) return;
+
+            e.preventDefault();
+            drag = { left: side.getBoundingClientRect().left, width: side.offsetWidth };
+            handle.setPointerCapture(e.pointerId);
+            layout.classList.add("im-layout_resizing");
+        });
+
+        handle.addEventListener("pointermove", e => {
+            if(drag) drag.width = apply(e.clientX - drag.left);
+        });
+
+        const finish = () => {
+            if(!drag) return;
+
+            layout.classList.remove("im-layout_resizing");
+            save(drag.width);
+            drag = null;
+        };
+        handle.addEventListener("pointerup", finish);
+        handle.addEventListener("pointercancel", finish);
+        handle.addEventListener("dblclick", () => save(apply(DEFAULT)));
+
+        // в узком списке прячем то, что не влезает в заголовок: сначала «Избранное», потом вторую вкладку
+        const tabs = side.querySelector(".im-dialogs .ui_tabs");
+        const fitTabs = () => {
+            if(!tabs) return;
+
+            const optional = [tabs.querySelector(".ui_tabs_extra"), [...tabs.children].find(li => li.querySelector(".ui_tab") && !li.querySelector(".ui_tab_sel"))];
+            optional.forEach(el => el?.classList.remove("im-tab-hidden"));
+            for(const el of optional) {
+                if(!el || tabs.scrollWidth <= tabs.clientWidth) break;
+                el.classList.add("im-tab-hidden");
+            }
+
+            if(tabs.dataset.vkifyTabSliderInit === "1") window.__vkifyMoveTabSlider?.(tabs, tabs.querySelector(".ui_tab_sel"), false);
+        };
+
+        const tabsObserver = new ResizeObserver(() => {
+            if(!document.body.contains(side)) return tabsObserver.disconnect();
+            fitTabs();
+        });
+        tabsObserver.observe(side);
+        document.fonts?.ready.then(fitTabs);
+    })();
+</script>
+
+<script n:if="sizeof($corresps) > 0">
+    (() => {
+        const STR = {
+            pin:          {tr("messenger_pin_chat")},
+            unpin:        {tr("messenger_unpin_chat")},
+            mute:         {tr("messenger_mute_chat")},
+            unmute:       {tr("messenger_unmute_chat")},
+            archive:      {tr("messenger_archive_chat")},
+            unarchive:    {tr("messenger_unarchive_chat")},
+            deleteTitle:  {tr("messenger_delete_chat")},
+            deleteText:   {tr("messenger_delete_chat_confirm", '%NAME%')},
+            deleteForAll: {tr("messenger_delete_chat_for_all", '%NAME%')},
+            deleteBtn:    {tr("delete")},
+            cancelBtn:    {tr("cancel")},
+            error:        {tr("error")},
+            actionError:  {tr("messenger_chat_action_error")},
+        };
+        const box       = document.querySelector(".im-dialogs");
+        const list      = box.querySelector(".im-page--dcontent");
+        const scroller  = box.querySelector(".im-dialogs--body");
+        const layout    = box.closest(".im-layout");
+        const isArchive = box.dataset.archive === "1";
+        const PANE_KEY  = "im.pane";
+        const mobile    = window.matchMedia("(max-width: 768px)");
+
+        // режим может смениться рычажком без перезагрузки, поэтому проверяем на месте
+        const isWide   = () => !!layout?.classList.contains("im-layout_wide") && !mobile.matches;
+        const isHidden = () => box.offsetParent === null;
+
+        let drag = null, justDragged = false;
+        let loadedPages = 1, listEnd = false, loadingPage = false;
+
+        // открытый чат подсвечен в панели
+        const markActive = () => {
+            list.querySelectorAll(".nim-dialog_selected").forEach(el => el.classList.remove("nim-dialog_selected"));
+            if(box.dataset.active) list.querySelector(`.nim-dialog[data-sel="${ box.dataset.active }"]`)?.classList.add("nim-dialog_selected");
+        };
+
+        const sendAction = async (sel, act, forAll = false, extra = {}) => {
+            const fd = new FormData();
+            fd.set("hash", window.router.csrf);
+            fd.set("sel", sel);
+            fd.set("act", act);
+            fd.set("for_all", forAll ? "1" : "0");
+            Object.entries(extra).forEach(([k, v]) => fd.set(k, v));
+
+            const res = await fetch("/im/api/dialogs/action.json", { method: "POST", body: fd });
+            if(!res.ok) throw new Error(res.status);
+        };
+
+        const fail = () => NewNotification(STR.error, STR.actionError, null, Function.noop, 5000);
+
+        const parseEntries = html => {
+            const tmp = document.createElement("ul");
+            tmp.innerHTML = html;
+            return [...tmp.children];
+        };
+
+        // фоновое обновление: первая страница сливается со списком, догруженные страницы остаются
+        let lastListHtml = null;
+        const refreshList = async (force = false) => {
+            if(!force && (document.hidden || isHidden() || drag || document.querySelector(".im-dialog-menu"))) return;
+
+            const page = isWide() ? 1 : Number(new URLSearchParams(location.search).get("p") ?? 1);
+            try {
+                const html = (await (await fetch(`/im/api/list?archive=${ isArchive ? 1 : 0 }&p=${ page }`)).text()).trim();
+                if(html.includes("<html") || (!force && html === lastListHtml)) return;
+                lastListHtml = html;
+                if(drag || !document.body.contains(list)) return;
+
+                const fresh = parseEntries(html);
+                if(page !== 1 || force) {
+                    list.replaceChildren(...fresh);
+                    loadedPages = 1;
+                    listEnd = false;
+                } else {
+                    fresh.forEach(el => list.querySelector(`.nim-dialog[data-sel="${ el.dataset.sel }"]`)?.remove());
+                    list.prepend(...fresh);
+                }
+                markActive();
+            } catch(e) {
+                console.error("Dialogs list refresh failed", e);
+            }
+        };
+
+        // следующие страницы догружаются при прокрутке панели в широком режиме или самой страницы
+        const loadPage = async () => {
+            if(loadingPage || listEnd) return;
+            loadingPage = true;
+
+            try {
+                const html = (await (await fetch(`/im/api/list?archive=${ isArchive ? 1 : 0 }&p=${ loadedPages + 1 }`)).text()).trim();
+                const fresh = html.includes("<html") ? [] : parseEntries(html).filter(el => !list.querySelector(`.nim-dialog[data-sel="${ el.dataset.sel }"]`));
+                if(fresh.length === 0) {
+                    listEnd = true;
+                } else {
+                    list.append(...fresh);
+                    loadedPages++;
+                    markActive();
+                }
+            } catch(e) {
+                listEnd = true;
+            }
+
+            loadingPage = false;
+        };
+
+        const nearBottom = () => isWide()
+            ? scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 150
+            : window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 300;
+
+        const fillList = async () => {
+            while(!listEnd && !isHidden() && nearBottom()) {
+                const before = loadedPages;
+                await loadPage();
+                if(loadedPages === before) break;
+            }
+        };
+
+        const revealActive = () => {
+            const active = list.querySelector(".nim-dialog_selected");
+            if(active && (active.offsetTop < scroller.scrollTop || active.offsetTop + active.offsetHeight > scroller.scrollTop + scroller.clientHeight))
+                scroller.scrollTop = active.offsetTop - (scroller.clientHeight - active.offsetHeight) / 2;
+        };
+
+        const askDelete = entry => {
+            const name = escapeHtml(entry.dataset.name);
+            let body = STR.deleteText.replace("%NAME%", name);
+            if(entry.dataset.self !== "1")
+                body += `<br><br><label class="checkbox"><input type="checkbox" id="im_delete_for_all"> <span>${ STR.deleteForAll.replace("%NAME%", name) }</span></label>`;
+
+            MessageBox(STR.deleteTitle, body, [STR.deleteBtn, STR.cancelBtn], [async () => {
+                const forAll = document.getElementById("im_delete_for_all")?.checked ?? false;
+                try {
+                    await sendAction(entry.dataset.sel, "delete", forAll);
+                    entry.remove();
+                    if(entry.dataset.sel === box.dataset.active) window.router.navigate("/im");
+                } catch(e) {
+                    fail();
+                }
+            }, Function.noop]);
+        };
+
+        const menuItems = entry => [
+            ...(isArchive
+                ? [["unarchive", STR.unarchive]]
+                : [entry.classList.contains("nim-dialog_pinned") ? ["unpin", STR.unpin] : ["pin", STR.pin], ["archive", STR.archive]]),
+            entry.classList.contains("nim-dialog_muted") ? ["unmute", STR.unmute] : ["mute", STR.mute],
+            ["delete", STR.deleteTitle],
+        ];
+
+        const onAction = async (entry, act) => {
+            if(act === "delete") return askDelete(entry);
+
+            try {
+                await sendAction(entry.dataset.sel, act);
+            } catch(e) {
+                return fail();
+            }
+
+            if(act === "pin" || act === "unpin") {
+                refreshList(true);
+            } else if(act === "archive" || act === "unarchive") {
+                entry.remove();
+            } else {
+                entry.classList.toggle("nim-dialog_muted", act === "mute");
+            }
+        };
+
+        const buildMenu = (entry, tip) => {
+            const menu = document.createElement("div");
+            menu.className = "tippy-menu im-dialog-menu";
+
+            menuItems(entry).forEach(([act, text]) => {
+                const link = document.createElement("a");
+                link.textContent = text;
+                if(act === "delete") link.className = "msg-menu-danger";
+                link.addEventListener("click", e => {
+                    e.preventDefault();
+                    tip.hide();
+                    onAction(entry, act);
+                });
+                menu.append(link);
+            });
+
+            return menu;
+        };
+
+        const menuOptions = {
+            theme: "light vk",
+            animation: "up_down",
+            content: "",
+            allowHTML: true,
+            interactive: true,
+            arrow: false,
+            zIndex: 1000,
+            appendTo: () => document.body,
+        };
+
+        tippy.delegate(list, {
+            ...menuOptions,
+            target: ".nim-dialog--menu",
+            placement: "bottom-end",
+            trigger: "click",
+            offset: [0, 6],
+            onShow(tip) {
+                tip.reference.closest(".nim-dialog").classList.add("nim-dialog_menu-open");
+                tip.setContent(buildMenu(tip.reference.closest(".nim-dialog"), tip));
+            },
+            onHidden(tip) {
+                tip.reference.closest(".nim-dialog")?.classList.remove("nim-dialog_menu-open");
+            },
+        });
+
+        // то же меню по правому клику, под курсором
+        const contextAnchor = window.__imContextAnchor ??= document.body.appendChild(document.createElement("div"));
+        contextAnchor._tippy?.destroy();
+        const contextMenu = tippy(contextAnchor, {
+            ...menuOptions,
+            placement: "bottom-start",
+            trigger: "manual",
+            offset: [0, 0],
+        });
+
+        list.addEventListener("contextmenu", e => {
+            const entry = e.target.closest(".nim-dialog");
+            if(!entry || e.target.closest("a[href]")) return;
+
+            e.preventDefault();
+            const x = e.clientX, y = e.clientY;
+            contextMenu.hide();
+            contextMenu.setProps({
+                getReferenceClientRect: () => ({ width: 0, height: 0, top: y, bottom: y, left: x, right: x }),
+            });
+            contextMenu.setContent(buildMenu(entry, contextMenu));
+            contextMenu.show();
+        });
+
+        // переход в диалог; панель после перехода откроется на том же месте
+        const openEntry = (entry, e) => {
+            if(e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return window.open(entry.dataset.imUrl, "_blank");
+
+            if(isWide()) {
+                try {
+                    sessionStorage.setItem(PANE_KEY, JSON.stringify({ archive: isArchive, pages: loadedPages, top: scroller.scrollTop }));
+                } catch(err) {}
+
+                box.dataset.active = entry.dataset.sel;
+                markActive();
+            }
+
+            window.router.navigate(entry.dataset.imUrl);
+        };
+
+        list.addEventListener("click", e => {
+            const entry = e.target.closest(".nim-dialog");
+            if(!entry || e.target.closest(".nim-dialog--menu, a[href]")) return;
+
+            e.preventDefault();
+            if(justDragged) return;
+            openEntry(entry, e);
+        });
+
+        list.addEventListener("auxclick", e => {
+            const entry = e.target.closest(".nim-dialog");
+            if(entry && e.button === 1 && !e.target.closest(".nim-dialog--menu, a[href]")) openEntry(entry, e);
+        });
+
+        // перетаскивание закреплённых чатов
+        const pinnedEntries = () => [...list.querySelectorAll(".nim-dialog.nim-dialog_pinned")];
+
+        list.addEventListener("pointerdown", e => {
+            const entry = e.target.closest(".nim-dialog.nim-dialog_pinned");
+            if(!entry || e.button !== 0 || e.pointerType === "touch" || e.target.closest(".nim-dialog--menu")) return;
+
+            const entries = pinnedEntries();
+            if(entries.length < 2) return;
+
+            e.preventDefault();
+            drag = {
+                entry,
+                entries,
+                rects:  entries.map(el => el.getBoundingClientRect()),
+                start:  entries.indexOf(entry),
+                target: entries.indexOf(entry),
+                startY: e.clientY,
+                moved:  false,
+            };
+            entry.setPointerCapture(e.pointerId);
+        });
+
+        list.addEventListener("pointermove", e => {
+            if(!drag) return;
+
+            let dy = e.clientY - drag.startY;
+            if(!drag.moved) {
+                if(Math.abs(dy) < 5) return;
+                drag.moved = true;
+                list.classList.add("im-page--dragging");
+                drag.entry.classList.add("nim-dialog_dragging");
+            }
+
+            const { rects, start } = drag;
+            const own = rects[start];
+            dy = Math.max(rects[0].top - own.top, Math.min(rects[rects.length - 1].bottom - own.bottom, dy));
+            drag.entry.style.transform = `translateY(${ dy }px)`;
+
+            // чаты разной высоты: сосед пропускается, когда край перетаскиваемого заходит за его середину
+            drag.target = rects.filter((r, i) => {
+                const middle = r.top + r.height / 2;
+                if(i < start) return own.top + dy >= middle;
+                if(i > start) return own.bottom + dy > middle;
+                return false;
+            }).length;
+
+            drag.entries.forEach((el, i) => {
+                if(i === start) return;
+
+                let shift = 0;
+                if(i > start && i <= drag.target) shift = -own.height;
+                if(i < start && i >= drag.target) shift = own.height;
+                el.style.transform = shift ? `translateY(${ shift }px)` : "";
+            });
+        });
+
+        const finishDrag = () => {
+            if(!drag) return;
+
+            const { entry, entries, rects, start, target, moved } = drag;
+            drag = null;
+            if(!moved) return;
+
+            justDragged = true;
+            setTimeout(() => justDragged = false, 300);
+
+            const own = rects[start];
+            const finalY = target > start
+                ? rects[target].bottom - own.bottom
+                : rects[target].top - own.top;
+
+            entry.classList.remove("nim-dialog_dragging");
+            entry.classList.add("nim-dialog_dropping");
+            entry.style.transform = `translateY(${ finalY }px)`;
+
+            setTimeout(() => {
+                list.classList.remove("im-page--dragging");
+                entry.classList.remove("nim-dialog_dropping");
+                entries.forEach(el => el.style.transform = "");
+
+                if(target === start) return;
+
+                const anchor = entries[target];
+                target > start ? anchor.after(entry) : anchor.before(entry);
+
+                sendAction(0, "reorder", false, {
+                    order: pinnedEntries().map(el => el.dataset.sel).join(","),
+                }).catch(fail);
+            }, 150);
+        };
+
+        list.addEventListener("pointerup", finishDrag);
+        list.addEventListener("pointercancel", finishDrag);
+
+        markActive();
+
+        const onScroll = () => {
+            if(!document.body.contains(list)) return window.removeEventListener("scroll", onScroll);
+            if(!isHidden() && nearBottom()) loadPage();
+        };
+        scroller.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("scroll", onScroll, { passive: true });
+
+        // рычажок широкоэкранного режима перестраивает страницу на месте
+        const onLayout = () => {
+            if(!document.body.contains(list)) return document.removeEventListener("im:layout", onLayout);
+
+            markActive();
+            if(isWide()) revealActive();
+            fillList();
+        };
+        document.addEventListener("im:layout", onLayout);
+
+        (async () => {
+            let state = null;
+            try {
+                state = JSON.parse(sessionStorage.getItem(PANE_KEY) ?? "null");
+                sessionStorage.removeItem(PANE_KEY);
+            } catch(e) {}
+
+            if(isWide() && state && state.archive === isArchive) {
+                while(!listEnd && loadedPages < state.pages) {
+                    const before = loadedPages;
+                    await loadPage();
+                    if(loadedPages === before) break;
+                }
+                scroller.scrollTop = state.top;
+            } else if(isWide()) {
+                revealActive();
+            }
+
+            fillList();
+        })();
+
+        const listTimer = setInterval(() => {
+            if(!document.body.contains(list)) return clearInterval(listTimer);
+            refreshList();
+        }, 5000);
+    })();
+</script>

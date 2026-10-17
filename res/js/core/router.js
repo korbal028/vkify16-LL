@@ -357,6 +357,9 @@ window.router = new class Router {
     }
 
     _handleVKifyContentUpdate() {
+        // широкоэкранный мессенджер раздвигает раскладку только на своих страницах
+        document.body.classList.toggle('im-wide-page', !!document.querySelector('.im-layout_wide'));
+
         if (window.vkify?.onPageReady) {
             vkify.onPageReady();
             return;
@@ -464,6 +467,11 @@ window.router = new class Router {
             pathname: location.pathname,
             html: u('.page_body').html(),
         };
+    }
+
+    navigate(url) {
+        const full = new URL(url, location.href).href;
+        this.checkUrl(full) ? this.route({ url: full }) : location.assign(full);
     }
 
     async route(params = {}) {

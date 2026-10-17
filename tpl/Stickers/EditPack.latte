@@ -1,0 +1,162 @@
+{extends "../@layout.latte"}
+
+{block title}
+    {if $isNew}{_stickers_new_pack}{else}{_stickers_edit_pack}{/if}
+{/block}
+
+{block content}
+    <div class="wide_column_left">
+        <div class="narrow_column_wrap">
+            <div class="narrow_column">
+                {include "Tabs.latte", act => "author", canCreate => true}
+            </div>
+        </div>
+
+        <div class="wide_column_wrap">
+            <div class="wide_column">
+                <div class="page_block stickers_edit_page">
+                    {include "../components/page_block_header.latte", title => $isNew ? 'stickers_new_pack' : 'stickers_edit_pack'}
+
+                    {* multiple-файлы ajax-роутер не отправляет - форма уходит обычным сабмитом *}
+                    <form class="form_group settings_padding stickers_edit_form" method="POST" enctype="multipart/form-data" onsubmit="return true" action="{$isNew ? '/stickers/new' : '/stickers/edit/' . $pack->getId()}">
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_name}</div>
+                            <div class="form_data">
+                                <input type="text" name="name" maxlength="256" required value="{$pack ? $pack->getName() : ''}" />
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_slug}</div>
+                            <div class="form_data">
+                                <input type="text" name="slug" maxlength="128" pattern="[A-Za-z0-9_\-]*" placeholder="my_pack" value="{$pack ? $pack->getSlug() : ''}" />
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_desc}</div>
+                            <div class="form_data">
+                                <textarea name="description">{$pack ? $pack->getDescription() : ''}</textarea>
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_author}</div>
+                            <div class="form_data">
+                                <input type="text" name="author" maxlength="256" placeholder="{_stickers_pack_author_placeholder}" value="{$pack ? $pack->getAuthor() : ''}" />
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_author_url}</div>
+                            <div class="form_data">
+                                <input type="text" name="author_url" maxlength="512" placeholder="https://" value="{$pack ? $pack->getAuthorUrl() : ''}" />
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label">{_stickers_pack_price}</div>
+                            <div class="form_data">
+                                <input type="number" name="price" min="0" max="65535" value="{$pack ? $pack->getPrice() : 0}" />
+                            </div>
+                        </div>
+                        <div class="form_field">
+                            <div class="form_label"></div>
+                            <div class="form_data">
+                                <label class="checkbox">
+                                    <input type="checkbox" name="unlisted" value="1" n:attr="checked => $pack && $pack->isUnlisted()" />
+                                    <span>{_stickers_pack_unlisted}</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {var $cover = $pack ? $pack->getMainSticker() : null}
+                        {if sizeof($existingStickers) > 0}
+                            <div class="stickers_section_title">{_stickers_upload_title} ({sizeof($existingStickers)})</div>
+                            <div class="stickers_cards_grid">
+                                <div n:foreach="$existingStickers as $sticker" class="existing_sticker_card">
+                                    <div class="existing_sticker_thumb">
+                                        <img src="{$sticker->getImageUrl(128, $pack->getId())}" alt="" loading="lazy" />
+                                    </div>
+                                    <input type="text" name="existing_emojis[{$sticker->getId()}]" maxlength="64" placeholder="{_stickers_emoji_placeholder}" value="{$sticker->getEmoji()}" />
+                                    <label class="radio" title="{_stickers_set_cover}">
+                                        <input type="radio" name="main_sticker_id" value="{$sticker->getId()}" n:attr="checked => $cover && $cover->getId() === $sticker->getId()" />
+                                        <span>{_stickers_cover}</span>
+                                    </label>
+                                    <label class="checkbox">
+                                        <input type="checkbox" name="delete_stickers[]" value="{$sticker->getId()}" onchange="this.closest('.existing_sticker_card').classList.toggle('is_deleted', this.checked)" />
+                                        <span>{_stickers_delete_sticker}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {/if}
+
+                        <div class="stickers_section_title">{_stickers_new_files}</div>
+                        <div class="stickers_section_hint">{_stickers_upload_hint}</div>
+                        <div class="stickers_upload_actions">
+                            <input type="file" id="stickers_file_input" name="stickers[]" multiple accept="image/png,image/jpeg,image/webp,image/gif,.json,.tgs" class="stickers_upload_file_input js-stickers-files" />
+                            <button type="button" class="button button_light" onclick="document.getElementById('stickers_file_input').click();">{_stickers_select_files}</button>
+                            <span class="stickers_draft_counter js-stickers-counter"></span>
+                        </div>
+                        <div class="stickers_cards_grid js-stickers-new" data-cover-name="{$isNew ? 'main_sticker_index' : 'new_main_sticker_index'}"></div>
+
+                        <input type="hidden" name="hash" value="{$csrfToken}" />
+                        <div class="settings_save_footer">
+                            <button class="button">{_stickers_save_pack}</button>
+                        </div>
+                    </form>
+
+                    {if !$isNew}
+                        <div class="form_group settings_padding">
+                            <div class="stickers_section_title">{_stickers_pack_balance}</div>
+                            <div>{tr("stickers_balance", (int) round($pack->getBalance()))|noescape}</div>
+                            <form n:if="$pack->getBalance() > 0" class="stickers_withdraw_form" method="POST" action="/stickers/edit/{$pack->getId()}" onsubmit="return true">
+                                <input type="hidden" name="action" value="withdraw" />
+                                <input type="hidden" name="hash" value="{$csrfToken}" />
+                                <input type="number" name="withdraw_amount" min="1" max="{$pack->getBalance()}" step="any" placeholder="{$pack->getBalance()}" />
+                                <button class="button">{_stickers_withdraw_btn}</button>
+                                <span n:if="$withdrawTax > 0" class="nobold">{_stickers_withdraw_tax}: {$withdrawTax}%</span>
+                            </form>
+                        </div>
+
+                        <form class="page_block_footer" method="POST" action="/stickers/edit/{$pack->getId()}" onsubmit="return confirm({tr('stickers_delete_pack_confirm')})">
+                            <input type="hidden" name="action" value="delete" />
+                            <input type="hidden" name="hash" value="{$csrfToken}" />
+                            <button class="button button_gray">{_stickers_delete_pack}</button>
+                        </form>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // превью выбранных файлов с полем эмодзи и выбором обложки
+        (() => {
+            const input = document.querySelector(".js-stickers-files");
+            if(!input) return;
+
+            input.addEventListener("change", () => {
+                const grid    = document.querySelector(".js-stickers-new");
+                const counter = document.querySelector(".js-stickers-counter");
+                const cover   = grid.dataset.coverName;
+                grid.innerHTML = "";
+                counter.textContent = input.files.length ? tr("stickers_count", input.files.length) : "";
+
+                [...input.files].forEach((file, i) => {
+                    const item = document.createElement("div");
+                    item.className = "existing_sticker_card";
+                    item.innerHTML = `
+                        <div class="existing_sticker_thumb"></div>
+                        <input type="text" name="emojis[]" maxlength="64" placeholder="${ escapeHtml(tr("stickers_emoji_placeholder")) }" />
+                        <label class="radio"><input type="radio" name="${ cover }" value="${ i }" /> <span>${ escapeHtml(tr("stickers_cover")) }</span></label>
+                    `;
+
+                    const thumb = item.querySelector(".existing_sticker_thumb");
+                    if(file.type.startsWith("image/")) {
+                        thumb.append(Object.assign(document.createElement("img"), { src: URL.createObjectURL(file), alt: "" }));
+                    } else {
+                        thumb.append(Object.assign(document.createElement("span"), { className: "stickers_file_name", textContent: file.name }));
+                    }
+
+                    grid.append(item);
+                });
+            });
+        })();
+    </script>
+{/block}

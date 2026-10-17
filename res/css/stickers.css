@@ -1,0 +1,493 @@
+/* Панель смайликов, стикеры и магазин стикеров в стиле VK 2016 */
+
+/* ==========================================================================
+   Панель смайликов (al_emoji.js)
+   ========================================================================== */
+
+.tippy-box[data-theme~="emoji"] {
+    border: 1px solid var(--border-color-2);
+    border-radius: 4px;
+    background: var(--module-background-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+    color: var(--text-color);
+}
+
+.tippy-box[data-theme~="emoji"] > .tippy-arrow {
+    color: var(--module-background-color);
+}
+
+.emoji-picker {
+    width: 330px;
+    overflow: hidden;
+    border-radius: 4px;
+}
+
+.emoji-picker--tabs {
+    padding: 0 6px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.emoji-picker--tabs a {
+    padding: 10px 0 8px;
+    color: var(--muted-text-color-3);
+    font-weight: 400;
+    text-decoration: none !important;
+}
+
+.emoji-picker--tabs a:hover {
+    color: var(--text-color);
+}
+
+.emoji-picker--tabs a.active {
+    color: var(--text-color);
+    border-bottom-color: var(--accent-color-2);
+}
+
+.emoji-picker--pane {
+    height: 300px;
+}
+
+.emoji-picker--body,
+.emoji-picker--gif-body {
+    padding: 0 4px 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color-2) transparent;
+}
+
+.emoji-picker--title {
+    padding: 10px 5px 6px;
+    color: var(--muted-text-color-3);
+    font-size: 12.5px;
+    font-weight: 400;
+}
+
+.emoji-picker--item {
+    width: 29px;
+    height: 29px;
+    border-radius: 3px;
+}
+
+.emoji-picker--item:hover,
+.emoji-picker--sticker:hover {
+    background-color: var(--module-background-color--secondary);
+}
+
+.emoji-picker--item.kolobok:hover {
+    background-color: var(--module-background-color--secondary);
+}
+
+.emoji-picker--sets {
+    gap: 0;
+    padding: 0 4px;
+    border-top: 0;
+    background: var(--module-background-color--secondary);
+    scrollbar-width: none;
+}
+
+.emoji-picker--sets a {
+    width: 36px;
+    height: 36px;
+}
+
+.emoji-picker--sets a:hover {
+    background-color: var(--dropdown-hover-color);
+}
+
+.emoji-picker--sets a.active,
+.emoji-picker--set.active {
+    background-color: var(--module-background-color);
+}
+
+.emoji-picker--set.active a.active {
+    background-color: transparent;
+}
+
+.emoji-picker--sticker-bar {
+    border-top: 0;
+    background: var(--module-background-color--secondary);
+}
+
+.emoji-picker--store {
+    width: 36px;
+}
+
+.emoji-picker--store:hover {
+    background-color: var(--dropdown-hover-color);
+}
+
+.emoji-picker--search {
+    padding: 8px 8px 4px;
+}
+
+.emoji-picker--search input {
+    height: 30px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color-3);
+    border-radius: 3px;
+    background: var(--module-background-color);
+    color: var(--text-color);
+}
+
+.emoji-picker--sticker {
+    border-radius: 4px;
+}
+
+.emoji-picker--gif {
+    border-radius: 3px;
+    background-color: var(--module-background-color--secondary);
+}
+
+.emoji-picker--gif:hover::after {
+    box-shadow: inset 0 0 0 2px var(--accent-color-2);
+    border-radius: 3px;
+}
+
+.emoji-picker--empty {
+    color: var(--muted-text-color-3);
+}
+
+.dark-mode .emoji-picker--icon-recent,
+.dark-mode .emoji-picker--icon-store {
+    filter: invert(1);
+}
+
+/* смайлики в тексте */
+.really_text .emoji,
+.reply_text .emoji,
+.text .emoji {
+    vertical-align: -3px;
+}
+
+/* ==========================================================================
+   Стикер в сообщении и окно набора (al_stickers.js)
+   ========================================================================== */
+
+.msg-attach-j-sticker .msg-sticker {
+    display: inline-block;
+    cursor: pointer;
+}
+
+.msg-attach-j-sticker img {
+    display: block;
+    width: 128px;
+    height: 128px;
+    object-fit: contain;
+}
+
+.stickers-modal-box .ovk-diag {
+    width: 470px;
+    max-width: 100%;
+}
+
+.stickers-modal--meta {
+    color: var(--muted-text-color-3);
+}
+
+.stickers-modal--edit {
+    float: right;
+    color: var(--link-color);
+}
+
+.stickers-modal--desc {
+    margin-top: 6px;
+    color: var(--muted-text-color-2);
+}
+
+.stickers-modal--grid {
+    gap: 6px;
+    max-height: 360px;
+    margin-top: 12px;
+    scrollbar-width: thin;
+}
+
+.stickers-modal--grid img {
+    border-radius: 4px;
+    transition: background-color .1s;
+}
+
+.stickers-modal--grid img:hover {
+    background-color: var(--module-background-color--secondary);
+}
+
+.stickers-modal-box .ovk-diag-action {
+    display: flex;
+    gap: 8px;
+}
+
+.stickers-modal-box .ovk-diag-action .button:first-child {
+    flex: 1;
+}
+
+/* ==========================================================================
+   Магазин стикеров
+   ========================================================================== */
+
+.stickers_shop_banner {
+    overflow: hidden;
+    border-radius: var(--module-border-radius) var(--module-border-radius) 0 0;
+}
+
+.stickers_shop_banner a {
+    display: block;
+    line-height: 0;
+}
+
+.stickers_shop_banner img {
+    width: 100%;
+    height: auto;
+}
+
+.stickers_search_bar {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.stickers_author_bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--muted-text-color-2);
+}
+
+.stickers_packs_grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 16px;
+    background: var(--module-background-color--secondary);
+}
+
+.stickers_pack_card.stickers-pack-row {
+    position: relative;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--module-border-radius);
+    background: var(--module-background-color);
+    box-shadow: 0 0 1px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
+    transition: top .1s ease;
+}
+
+.stickers_pack_card.stickers-pack-row:hover {
+    top: -2px;
+}
+
+.stickers_pack_thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1.6 / 1;
+    border-radius: var(--module-border-radius) var(--module-border-radius) 0 0;
+    background: var(--module-header-background-color);
+    cursor: pointer;
+}
+
+.stickers_pack_thumb img {
+    width: 55%;
+    height: 80%;
+    object-fit: contain;
+}
+
+.stickers_pack_preview {
+    display: flex;
+    gap: 2px;
+    padding: 6px 10px 0;
+    cursor: pointer;
+}
+
+.stickers_pack_preview img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+}
+
+.stickers_pack_name {
+    padding: 8px 10px 2px;
+    overflow: hidden;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 17px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.stickers_pack_name a {
+    color: var(--text-color);
+}
+
+.stickers_pack_author {
+    padding: 0 10px;
+    overflow: hidden;
+    color: var(--muted-text-color);
+    font-size: 12.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.stickers_pack_footer.stickers-pack-row--action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: auto;
+    padding: 10px;
+    text-align: left;
+}
+
+.stickers_pack_footer .button {
+    padding: 5px 12px;
+}
+
+.stickers-pack-row--added,
+.stickers_pack_author_balance {
+    color: var(--muted-text-color);
+    font-size: 12.5px;
+}
+
+.stickers_pack_price_free {
+    color: var(--success-color);
+}
+
+.stickers_pack_balance_val {
+    color: var(--link-color);
+}
+
+.stickers_empty {
+    padding: 50px 20px;
+    color: var(--muted-text-color-3);
+    text-align: center;
+}
+
+.stickers_shop_page .vkify-paginator {
+    padding: 12px 16px;
+}
+
+/* ==========================================================================
+   Редактор набора
+   ========================================================================== */
+
+.stickers_edit_form .form_field input[type="text"],
+.stickers_edit_form .form_field input[type="number"],
+.stickers_edit_form .form_field input[type="url"],
+.stickers_edit_form .form_field textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.stickers_section_title {
+    margin: 20px 0 4px;
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.stickers_section_hint {
+    margin-bottom: 10px;
+    color: var(--muted-text-color-3);
+    font-size: 12.5px;
+}
+
+.stickers_cards_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    margin: 10px 0;
+}
+
+.stickers_cards_grid:empty {
+    display: none;
+}
+
+.existing_sticker_card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--module-border-radius);
+    background: var(--module-background-color);
+    transition: opacity .2s ease;
+}
+
+.existing_sticker_card.is_deleted {
+    opacity: .45;
+}
+
+.existing_sticker_thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 96px;
+}
+
+.existing_sticker_thumb img {
+    max-width: 96px;
+    max-height: 96px;
+    object-fit: contain;
+}
+
+.existing_sticker_thumb .stickers_file_name {
+    overflow: hidden;
+    color: var(--muted-text-color-3);
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.existing_sticker_card input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.existing_sticker_card label {
+    color: var(--muted-text-color-2);
+    font-size: 12.5px;
+}
+
+.stickers_upload_actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stickers_upload_file_input {
+    display: none;
+}
+
+.stickers_draft_counter {
+    color: var(--muted-text-color-3);
+}
+
+.stickers_withdraw_form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.stickers_withdraw_form input[type="number"] {
+    width: 140px;
+}
+
+@media (max-width: 768px) {
+    .emoji-picker {
+        width: 300px;
+    }
+
+    .stickers_packs_grid {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .stickers_author_bar {
+        padding: 12px;
+    }
+}

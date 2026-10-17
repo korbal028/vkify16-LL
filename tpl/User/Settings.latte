@@ -500,7 +500,7 @@
                                     <div class="form_label">{_style}</div>
                                     <div class="form_data">
                                         <select name="style">
-                                            <option value="ovk" {if $user->getStyle() == 'ovk'}selected{/if}>OpenVK ({_default})</option>
+                                            <option value="ovk" {if $user->getStyle() == 'ovk'}selected{/if}>LainLife ({_default})</option>
                                             <option n:foreach="$themes as $id => $themeName"
                                                     n:attr="selected => $user->getStyle() === $id"
                                                     value="{$id}">
@@ -533,6 +533,10 @@
                                             if (typeof window.previewNotifSound === 'function') {
                                                 window.previewNotifSound(select.value);
                                             }
+                                        });
+                                        // автосохранение не перезагружает страницу, поэтому новый звук применяем сразу
+                                        select.addEventListener('change', function() {
+                                            if (window.openvk) window.openvk.notification_sound = select.value;
                                         });
                                     })();
                                 </script>
@@ -608,6 +612,7 @@
                                         <label class="checkbox"><input type="checkbox" name="mode_2018" value="1"><span><vkifyloc name="mode_2018"></vkifyloc></span></label>
                                         <label class="checkbox"><input type="checkbox" name="vkgraffiti" value="0"><span><vkifyloc name="graffitiswitch"></vkifyloc></span></label>
                                         <label class="checkbox"><input type="checkbox" name="ovkhat" value="0"><span><vkifyloc name="ovkhat"></vkifyloc></span></label>
+                                        <label class="checkbox"><input type="checkbox" name="im_wide" value="0"><span><vkifyloc name="im_wide_setting"></vkifyloc></span></label>
                                     </div>
                                 </div>
                             </form>

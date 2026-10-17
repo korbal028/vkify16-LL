@@ -17,8 +17,17 @@ vkify.ready(() => {
     const customSoundId = "vkify_notification";
     createjs.Sound.registerSound("/themepack/vkify16/3.3.5.2/resource/bb1.mp3", customSoundId);
 
+    // «Стандартный» звук в теме вкшный, остальные берём из настроек движка
+    const soundFor = id => id && id !== "bell" ? "notification_" + id : customSoundId;
+
     window.__actualPlayNotifSound = function() {
-        createjs.Sound.play(customSoundId);
+        window.__resumeAudioContext?.();
+        createjs.Sound.play(soundFor(window.__currentNotifSoundId?.() ?? window.openvk?.notification_sound));
+    };
+
+    window.previewNotifSound = function(id) {
+        window.__resumeAudioContext?.();
+        createjs.Sound.play(soundFor(id));
     };
 
     if (window.playNotifSound && window.playNotifSound !== Function.noop) {

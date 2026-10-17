@@ -2,6 +2,7 @@
 {var $darkModeEnabled = ($_COOKIE['vkify16_darkmode'] ?? '0') === '1'}
 {var $mode2018Enabled = ($_COOKIE['vkify16_2018mode'] ?? '0') === '1'}
 {var $ovkHatEnabled = ($_COOKIE['ovkhat'] ?? '0') === '1'}
+{var $imWidePage = ($_COOKIE['vkify16_im_wide'] ?? '0') === '1' && preg_match('~^/im(/archive)?(\?|$)~', $_SERVER['REQUEST_URI'] ?? '')}
 {var $hideSidebar = $_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/reg' || $_SERVER['REQUEST_URI'] === '/login' || (isset($thisUser) && $thisUser->isBanned())}
 {if !isset($parentModule) || substr($parentModule, 0, 21) === 'libchandler:absolute.'}
 <!DOCTYPE html>
@@ -58,7 +59,7 @@
             {include headIncludes}
         {/ifset}
     </head>
-    <body {if isset($thisUser)}data-themepack="{$thisUser->getStyle()}"{/if} n:class="$hideSidebar ? no-sidebar, isset($thisUser) && $thisUser->isBanned() ? banned, $darkModeEnabled ? dark-mode, $ovkHatEnabled ? ovkhat">
+    <body {if isset($thisUser)}data-themepack="{$thisUser->getStyle()}"{/if} n:class="$hideSidebar ? no-sidebar, isset($thisUser) && $thisUser->isBanned() ? banned, $darkModeEnabled ? dark-mode, $ovkHatEnabled ? ovkhat, $imWidePage ? im-wide-page">
         {include "_mobileIcons.latte"}
         <div n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['bellsAndWhistles']['testLabel']" id="test-label">FOR TESTING PURPOSES ONLY</div>
 
@@ -598,6 +599,9 @@
         {script "js/player.js"}
         {script "js/al_docs.js"}    
         {script "js/al_api.js"}
+        {script "js/emoji_data.js"}
+        {script "js/al_emoji.js"}
+        {script "js/al_stickers.js"}
         {script "js/al_polls.js"}
         {script "js/al_comments.js"}
         {script "js/al_music.js"}
@@ -671,10 +675,12 @@
                 "current_id": {isset($thisUser) ? $thisUser->getId() : 0},
                 "status": {isset($thisUser) ? $thisUser->getStatus() : ""},
                 "broadcast_music": {isset($thisUser) ? $thisUser->isBroadcastEnabled() : false},
-                "disable_ajax": {isset($disable_ajax) ? $disable_ajax : 0},
+                {* чат темы переживает ajax-переходы, поэтому запрет движка для него не нужен *}
+                "disable_ajax": {isset($disable_ajax) && !isset($correspondent) ? $disable_ajax : 0},
                 "max_add_fields": {ovkGetQuirk("users.max-fields")},
                 "docs_max": {\OPENVK_ROOT_CONF["openvk"]["preferences"]["docs"]["maxSize"]},
                 "docs_allowed": {\OPENVK_ROOT_CONF["openvk"]["preferences"]["docs"]["allowedFormats"]},
+                "gif_search": {\openvk\Web\Util\GifSearch::getProviderName()},
                 "notification_sound": {ifset $thisUser}{$thisUser->getNotificationSound()}{else}"bell"{/ifset},
                 "avatar_style": {ifset $thisUser}{$thisUser->getStyleAvatar()}{else}0{/ifset},
             }
@@ -693,7 +699,7 @@
 
         <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/core/router.js"></script>
         <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/mobile.js"></script>
-        <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/emoji-picker.js"></script>
+        <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/features/send-message.js" n:ifset="$thisUser"></script>
 
         {* Bundled themepack JS (see build.mjs for module order) *}
         <script defer src="/themepack/vkify16/{$theme->getVersion()}/resource/js/dist/vkify16.bundle.js"></script>

@@ -1,0 +1,6 @@
+{* data-vkify-choice-label: не даём choice-labels.js переделать переключатель в обычный чекбокс *}
+<label class="im-wide-toggle" data-vkify-choice-label="1">
+    <span class="im-wide-toggle--label"><vkifyloc name="im_wide_mode"></vkifyloc></span>
+    <input type="checkbox" class="im-wide-toggle--input" onchange="window.toggleImWide?.(this.checked)" n:attr="checked => $imWide ?? false" />
+    <span class="im-wide-toggle--switch"></span>
+</label>

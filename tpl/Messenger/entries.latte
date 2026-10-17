@@ -1,0 +1,116 @@
+{php
+if (!function_exists('vkify_truncate_html')) {
+    function vkify_truncate_html($html, $limit, $lineLimit = 9999, $inlineAppend = '') {
+        if (mb_strlen(strip_tags(html_entity_decode($html, ENT_QUOTES, 'UTF-8'))) <= $limit) {
+            return $html;
+        }
+
+        preg_match_all('/<[^>]+>|&[^;\s]{1,9};|./us', $html, $tokens);
+
+        $result = '';
+        $printed = 0;
+        $lines = 1;
+        $tags = [];
+        $truncated = false;
+
+        foreach ($tokens[0] as $t) {
+            if ($printed >= $limit) {
+                $truncated = true;
+                break;
+            }
+
+            if (str_starts_with($t, '<')) {
+                if (preg_match('%^<\s*br\s*/?>%i', $t) && $lines++ >= $lineLimit) {
+                    $truncated = true;
+                    break;
+                }
+
+                $result .= $t;
+
+                if (preg_match('%^</\s*([a-z0-9]+)>%i', $t)) {
+                    array_pop($tags);
+                } elseif (preg_match('%^<\s*([a-z0-9]+)%i', $t, $m)) {
+                    $tagName = strtolower($m[1]);
+                    if (!in_array($tagName, ['br', 'img', 'hr', 'input', 'meta', 'link'])) {
+                        $tags[] = $tagName;
+                    }
+                }
+            } else {
+                if ($t === "\n" && $lines++ >= $lineLimit) {
+                    $truncated = true;
+                    break;
+                }
+                $result .= $t;
+                $printed++;
+            }
+        }
+
+        if ($truncated) {
+            $result .= '…';
+        }
+
+        $result .= $inlineAppend;
+
+        while ($tag = array_pop($tags)) {
+            $result .= "</$tag>";
+        }
+
+        return $result;
+    }
+}
+}
+{var $User = openvk\Web\Models\Entities\User::class}
+{foreach $corresps as $coresp}
+    {var $recipient = $coresp->getCorrespondents()[1]}
+    {var $lastMsg   = $coresp->getPreviewMessage()}
+    {var $isSaved   = $coresp->getID() === $thisUser->getId()}
+    {var $settings  = $dialogSettings[$coresp->getID()] ?? ["pinned" => 0, "muted" => 0]}
+    {var $author    = $lastMsg->getSender()}
+    {var $outgoing  = $author instanceof $User && $author->getId() === $thisUser->getId()}
+    {var $unread    = !$isSaved && $lastMsg->isUnread()}
+    <li
+        n:class="nim-dialog, nim-dialog_classic, scroll_node, $settings['pinned'] ? nim-dialog_pinned, $settings['muted'] ? nim-dialog_muted, $unread && !$outgoing ? nim-dialog--unread, $unread && $outgoing ? nim-dialog_unread-out"
+        data-uniqueid="conversation-{$coresp->getID()}"
+        data-sel="{$coresp->getID()}"
+        data-im-url="{$coresp->getURL()}"
+        data-name="{$isSaved ? tr('saved_messages') : $recipient->getCanonicalName()}"
+        data-self="{(int) $isSaved}">
+        <div class="nim-dialog--photo" title="{$isSaved ? tr('saved_messages') : $recipient->getCanonicalName()}">
+            <div n:class="nim-peer, !$isSaved && $recipient instanceof $User && $recipient->isOnline() ? online">
+                <div class="nim-peer--photo-w">
+                    <div class="nim-peer--photo">
+                        <div class="im_grid">
+                            {if $isSaved}
+                                <img src="/assets/packages/static/openvk/img/im/saved_messages.png" class="avatar" width="50" alt="{_saved_messages}" loading="lazy" />
+                            {else}
+                                {include '../components/avatar.latte', author => $recipient, size => 'miniscule', width => 50, height => 50, alt => tr('photo'), loading => 'lazy'}
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="nim-dialog--content">
+            <div class="nim-dialog--cw">
+                <div class="nim-dialog--date_wrapper">
+                    <span class="nim-dialog--pin" n:if="$settings['pinned']" title="{_messenger_chat_pinned}"></span>
+                    <div class="nim-dialog--date">{$lastMsg->getSendTimeHumanized()}</div>
+                    <a class="nim-dialog--menu" title="{_messenger_more}"></a>
+                </div>
+
+                <div class="nim-dialog--name">
+                    <span class="nim-dialog--name-w" title="{$isSaved ? tr('saved_messages') : $recipient->getCanonicalName()}">
+                        {$isSaved ? tr('saved_messages') : $recipient->getCanonicalName()}
+                    </span>
+                    <span class="nim-dialog--mute" title="{_messenger_chat_muted}"></span>
+                </div>
+                <div class="nim-dialog--text-preview">
+                    <span class="nim-dialog--preview">
+                        <span class="nim-dialog--inner-text">{vkify_truncate_html($lastMsg->getPreviewText(), 150)|noescape}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </li>
+{/foreach}

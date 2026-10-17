@@ -97,7 +97,7 @@
                         class => 'audios_search_header'
                     }
                     <div class="audiosDiv" n:if="$mode != 'playlists'">
-                        <div class="audiosContainer audiosSideContainer">
+                        <div class="audiosContainer audiosSideContainer" n:attr="data-reorder-owner => ($mode == 'list' && ($isMy || $isMyClub)) ? $ownerId : null">
                             {if ($audiosCount ?? 0) <= 0}
                                 {include "../components/content_error.latte", icon => "no_music.svg", description => $ownerId > 0 ? ($ownerId == $thisUser->getId() ? tr("no_audios_thisuser") : tr("no_audios_user")) : tr("no_audios_club")}
                             {/if}

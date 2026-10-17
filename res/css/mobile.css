@@ -33,9 +33,7 @@
     .page_content,
     .wide_column,
     .wide_column_wrap,
-    #auth,
-    .crp-list,
-    .messenger-app {
+    #auth {
         width: 100% !important;
         margin-right: 0 !important;
         margin-left: 0 !important;
@@ -1679,33 +1677,6 @@
     }
     .video_info {
         margin: 0 16px;
-    }
-
-    /* messages */
-    .messenger-app--messages---message {
-        position: relative;
-        padding: 16px 8px 13px;
-    }
-    .messenger-app--messages---message .time {
-        width: fit-content;
-        position: absolute;
-        right: 8px;
-        top: 16px;
-    }
-    /* .time уходит из потока через position:absolute выше, поэтому обёртку
-       .msg-time-actions (десктопная flex-колонка время+иконки) нужно нейтрализовать,
-       иначе иконки остаются в потоке ровно там, где раньше стояло время, и налезают на него */
-    .messenger-app--messages---message .msg-time-actions {
-        display: contents;
-    }
-    .messenger-app--messages---message .msg-hover-actions {
-        position: absolute;
-        right: 8px;
-        top: 34px;
-        opacity: 1;
-    }
-    .messenger-app--messages---message ._content > a {
-        width: calc(100% - 80px)
     }
 
     /* notes */
