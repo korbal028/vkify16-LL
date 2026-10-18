@@ -1755,6 +1755,12 @@ div.container_gray > form > table {
     text-decoration: none;
 }
 
+/* перетаскиваемая песня — цветом блока темы, а не светлым фоном движка, иначе в тёмной теме она белая */
+.audiosContainer.audios-dragging .scroll_node.dragging,
+.PE_audios.audios-dragging .vertical-attachment.dragging {
+    background-color: var(--module-background-color);
+}
+
 .common_icon {
     background: url(/themepack/vkify16/3.3.5.2/resource/icons/common.png) no-repeat;
     width: 14px;
