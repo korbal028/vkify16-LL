@@ -1560,6 +1560,45 @@
                 e.preventDefault();
                 openMessageSearch();
             });
+
+            // Esc возвращает из чата к списку диалогов, как в Telegram: сначала он снимает выделение, редактирование, ответ
+            // и пересылку, а открытые окна, просмотрщик, меню и поиск в панели закрывает сам.
+            // Чтобы не потерять черновик, с текстом или вложениями в поле ввода не уходим
+            let escOwned = false;
+
+            // до остальных обработчиков: окно могло закрыться этим же нажатием
+            const onEscCapture = e => {
+                if(e.key === "Escape") escOwned = (window.messagebox_stack?.length ?? 0) > 0 || document.body.classList.contains("dimmed") || !!document.querySelector("[data-tippy-root]");
+            };
+
+            const onEsc = e => {
+                if(!messenger.alive) {
+                    window.removeEventListener("keydown", onEscCapture, true);
+                    return window.removeEventListener("keydown", onEsc);
+                }
+                if(e.key !== "Escape" || e.repeat || e.defaultPrevented || escOwned) return;
+
+                if(window.selectedMsgs().length) return window.selectedMsgs.removeAll();
+                if(window.editMsg()) return messenger.cancelEdit();
+                if(window.replyTo()) return messenger.clearReply();
+                if(window.forwardMsgs().length) return messenger.clearForward();
+
+                // в широкоэкранном режиме сначала закрывается поиск в панели
+                const searchClose = document.querySelector(".im-dialogs_searching .im-search--close");
+                if(searchClose?.offsetParent) return searchClose.click();
+
+                const field = e.target.closest?.("input, textarea, select, [contenteditable]");
+                const ta    = document.querySelector("#write textarea[name=message]");
+                if(field && field !== ta) return;
+                if(ta && ta.value.trim() !== "") return;
+                if(form && typeof collect_attachments === "function" && collect_attachments(u(form)).length > 0) return;
+
+                e.preventDefault();
+                window.router ? window.router.navigate("/im") : location.assign("/im");
+            };
+
+            window.addEventListener("keydown", onEscCapture, true);
+            window.addEventListener("keydown", onEsc);
         })();
     </script>
 {/block}
