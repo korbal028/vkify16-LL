@@ -720,7 +720,7 @@
                     params.delete("msg");
                     history.replaceState(history.state, "", location.pathname + "?" + params);
 
-                    if(uuid > 0) this.goToMessage(uuid);
+                    if(uuid > 0) return this.goToMessage(uuid);
                 }
 
                 async _post(url, data = {}) {
@@ -993,7 +993,12 @@
             const messenger = window.Msg = new Messenger();
             messenger.takeForward();
             messenger.fillHistory();
-            messenger.takeJump();
+
+            // экран загрузки снимается, когда лента готова; при переходе к сообщению — после перехода
+            Promise.resolve(messenger.takeJump()).finally(() => {
+                messenger.root.classList.remove("im-chat_loading");
+                messenger.root.querySelector(".im-chat--loader")?.remove();
+            });
 
             const form = document.querySelector("#write");
             form?.addEventListener("sticker:send", e => {
@@ -1671,7 +1676,9 @@
 {/block}
 
 {define imChat}
-    <div class="im-chat">
+    {* im-chat_loading прячет разметку шаблонов, пока скрипт не построит ленту; шапка видна сразу *}
+    <div class="im-chat im-chat_loading">
+        <div class="im-chat--loader"><div class="pr"><div class="pr_bt"></div><div class="pr_bt"></div><div class="pr_bt"></div></div></div>
         <div class="im-chat--head">
             <div class="im-chat--head-main">
                 <a class="im-chat--back" href="/im">{_paginator_back}</a>

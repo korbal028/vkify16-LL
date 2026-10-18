@@ -167,6 +167,34 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* экран загрузки чата: пока скрипт не построил ленту, под шапкой вместо сырой разметки шаблонов — индикатор */
+.im-chat_loading {
+    position: relative;
+}
+
+.im-chat_loading > :not(.im-chat--head):not(.im-chat--loader) {
+    visibility: hidden;
+    animation: im-loading-failsafe 0s 8s forwards;
+}
+
+.im-chat--loader {
+    position: absolute;
+    top: 49px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    animation: im-loading-failsafe-hide 0s 8s forwards;
+}
+
+.im-chat--loader .pr {
+    transform: scale(1.8);
+}
+
 .im-chat--head-main {
     display: flex;
     align-items: center;
