@@ -608,7 +608,8 @@ div.avatar_block:hover .avatar_variants {
   padding: 12px 15px 14px;
 }
 
-.profile_rating + .profile_warning_row {
+/* показывается одна подсказка, не обязательно первая */
+.profile_rating ~ .profile_warning_row {
   border-top: 1px solid var(--border-color);
 }
 

@@ -50,7 +50,8 @@ window.Profile = {
         
         const container = document.querySelector('.completeness_block');
         if (container) {
-            if (shownOne) {
+            // в блоке кроме подсказок есть плашка рейтинга — тогда он остаётся, даже когда подсказок не осталось
+            if (shownOne || container.querySelector('.profile_rating')) {
                 $(container).show();
             } else {
                 if (animate) {
