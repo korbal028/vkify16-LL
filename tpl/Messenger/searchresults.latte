@@ -47,7 +47,7 @@
                 <div class="nim-dialog--content">
                     <div class="nim-dialog--cw">
                         <div class="nim-dialog--date_wrapper">
-                            <div class="nim-dialog--date">{$found->message->getSendTime()}</div>
+                            <div class="nim-dialog--date">{$found->message->getSendTimeHumanized()}</div>
                         </div>
                         <div class="nim-dialog--name">
                             <span class="nim-dialog--name-w">{$found->saved ? tr("saved_messages") : $found->peer->getCanonicalName()}</span>

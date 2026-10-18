@@ -917,6 +917,13 @@ body {
     display: block;
 }
 
+@keyframes im-search-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
 /* результаты пересчитываются по мере ввода */
 .im-search-live.loading .im-search-page {
     opacity: .6;
@@ -1255,9 +1262,78 @@ body {
         height: 100%;
     }
 
-    /* поиска в широкоэкранном режиме пока нет */
-    .im-layout_wide .im-search,
-    .im-layout_wide .im-search-live {
+    /* поиск в панели, как в Telegram: открывается поверх списка чатов, прокручивается сам, вкладки остаются сверху */
+    .im-layout_wide .im-search {
+        flex: none;
+        border-radius: 0;
+    }
+
+    .im-layout_wide .im-dialogs_searching > .im-search-live {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color-3) transparent;
+        animation: im-search-in .15s ease;
+    }
+
+    /* после перехода в найденный чат поиск просто остаётся на месте */
+    .im-layout_wide .im-dialogs_searching > .im-search-live.im-search-live_restored {
+        animation: none;
+    }
+
+    .im-layout_wide .im-search-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+    }
+
+    .im-layout_wide .im-search-tabs .ui_tabs {
+        overflow-x: auto;
+        scrollbar-width: none;
+        border-radius: 0;
+    }
+
+    .im-layout_wide .im-search-tabs .ui_tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .im-layout_wide .im-search-live .content_page_error {
+        padding: 40px 15px;
+    }
+
+    .im-layout_wide .im-search-live .im-search-grid {
+        grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+        grid-auto-rows: 84px;
+        gap: 2px;
+        padding: 8px;
+    }
+
+    .im-layout_wide .im-search-live .im-search-rows {
+        padding: 6px 4px;
+    }
+
+    /* в узкой панели чат, где лежит вложение, подписан под ним */
+    .im-layout_wide .im-search-live .im-search-att-row {
+        display: block;
+    }
+
+    .im-layout_wide .im-search-live .im-search-att-row .im-search-att--goto {
+        display: block;
+        width: auto;
+        padding: 0 6px 6px 80px;
+        text-align: left;
+    }
+
+    .im-layout_wide .im-search-live .im-search-att-row:has(.im-peer-att--audio) .im-search-att--goto {
+        padding-left: 6px;
+    }
+
+    /* в панели из одних аватарок поиску нет места */
+    .im-layout_wide.im-layout_compact .im-search,
+    .im-layout_wide.im-layout_compact .im-search-live {
         display: none;
     }
 

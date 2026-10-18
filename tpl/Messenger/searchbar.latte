@@ -1,4 +1,4 @@
-{* поиск по всем чатам над списком диалогов, только в обычном режиме; open — поиск уже открыт (страница /im/search) *}
+{* поиск по всем чатам над списком диалогов; open — поиск уже открыт (страница /im/search) *}
 {var $searchQuery = $query ?? ''}
 <div n:class="ui_search, im-search, $searchQuery === '' ? ui_search_field_empty, ($open ?? false) ? im-search_open">
     <div class="ui_search_input_block">
@@ -17,8 +17,9 @@
 </div>
 
 <script>
-    // как в Telegram: нажатие на строку открывает поиск с вкладками вместо списка чатов, крестик или Esc закрывают его;
-    // результаты обновляются по мере ввода и догружаются при прокрутке
+    // как в Telegram: нажатие на строку открывает поиск с вкладками поверх списка чатов, крестик или Esc закрывают его;
+    // результаты обновляются по мере ввода и догружаются при прокрутке.
+    // В широкоэкранном режиме поиск живёт в левой панели: адрес не меняется, а после перехода в найденный чат поиск остаётся открытым
     (() => {
         const bar  = document.querySelector(".im-search");
         const live = document.querySelector(".im-search-live");
@@ -32,9 +33,11 @@
         const hasList = () => !!box.querySelector(".im-dialogs--body");
         const mobile  = window.matchMedia("(max-width: 768px)");
         const initial = location.pathname + location.search;
+        const STATE_KEY = "im.search";
 
-        const isWide = () => !!layout?.classList.contains("im-layout_wide") && !mobile.matches;
-        const isOpen = () => box.classList.contains("im-dialogs_searching");
+        const isWide    = () => !!layout?.classList.contains("im-layout_wide") && !mobile.matches;
+        const isCompact = () => isWide() && layout.classList.contains("im-layout_compact");
+        const isOpen    = () => box.classList.contains("im-dialogs_searching");
 
         // вкладка, выбранная вручную; без неё раздел выбирает сервер
         let section = new URLSearchParams(location.search).get("section");
@@ -43,6 +46,8 @@
         let abort   = null;
         let version = 0;
         let loading = false;
+        let pages   = 1;
+        let active  = null; // найденное, в которое перешли, подсвечено как открытый чат
 
         const searchUrl = (base, q) => {
             const params = new URLSearchParams();
@@ -52,7 +57,20 @@
             return base + (params.toString() ? "?" + params : "");
         };
 
-        const nearBottom = () => window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 300;
+        // в широком режиме прокручивается сама панель с результатами, в обычном — страница
+        const nearBottom = () => isWide()
+            ? live.scrollTop + live.clientHeight > live.scrollHeight - 150
+            : window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 300;
+
+        const markActive = () => {
+            live.querySelectorAll(".nim-dialog_selected").forEach(el => el.classList.remove("nim-dialog_selected"));
+            if(!isWide()) return;
+
+            live.querySelectorAll(".nim-dialog").forEach(el => {
+                const chat = !el.classList.contains("im-search-msg") && box.dataset.active && el.dataset.sel === box.dataset.active;
+                if(chat || (active && el.dataset.imUrl === active)) el.classList.add("nim-dialog_selected");
+            });
+        };
 
         const slideTo = (tabs, tab) => {
             if(!tabs || !tab || !window.__vkifyMoveTabSlider) return;
@@ -66,11 +84,13 @@
         const render = html => {
             const fresh = document.createElement("template");
             fresh.innerHTML = html;
+            pages = 1;
 
             const tabs = live.querySelector(".im-search-tabs .ui_tabs");
             if(!tabs) {
                 live.replaceChildren(fresh.content);
-                return window.__vkifyInitTabSliderSafe?.();
+                window.__vkifyInitTabSliderSafe?.();
+                return markActive();
             }
 
             let selected = null;
@@ -86,6 +106,8 @@
             slideTo(tabs, selected);
 
             live.querySelector(".im-search-page").replaceWith(fresh.content.querySelector(".im-search-page"));
+            live.scrollTop = 0;
+            markActive();
         };
 
         const loadMore = async () => {
@@ -103,6 +125,8 @@
                 if(current === version) {
                     page.querySelector("[data-items]")?.append(...(next.querySelector("[data-items]")?.children ?? []));
                     page.dataset.next = next.querySelector(".im-search-page")?.dataset.next ?? "";
+                    pages++;
+                    markActive();
                 }
             } catch(e) {
                 page.dataset.next = "";
@@ -135,7 +159,8 @@
                 if(current !== version) return;
 
                 render(html);
-                history.replaceState(history.state, "", q === "" && !section && hasList() ? initial : searchUrl("/im/search", q));
+                // в широком режиме на странице открыт чат, его адрес не трогаем
+                if(!isWide()) history.replaceState(history.state, "", q === "" && !section && hasList() ? initial : searchUrl("/im/search", q));
                 if(nearBottom()) loadMore();
             } catch(e) {
                 if(e.name !== "AbortError") console.error("Search failed", e);
@@ -144,11 +169,15 @@
             if(current === version) live.classList.remove("loading");
         };
 
-        const open = () => {
-            if(isOpen() || isWide()) return;
-
+        const show = () => {
             box.classList.add("im-dialogs_searching");
             bar.classList.add("im-search_open");
+        };
+
+        const open = () => {
+            if(isOpen() || isCompact()) return;
+
+            show();
             update(true);
         };
 
@@ -164,13 +193,14 @@
             input.blur();
             section = null;
             last    = null;
+            active  = null;
 
             box.classList.remove("im-dialogs_searching");
             bar.classList.remove("im-search_open");
             bar.classList.add("ui_search_field_empty");
             live.replaceChildren();
-            live.classList.remove("loading");
-            history.replaceState(history.state, "", initial);
+            live.classList.remove("loading", "im-search-live_restored");
+            if(!isWide()) history.replaceState(history.state, "", initial);
         };
 
         input.addEventListener("focus", open);
@@ -204,12 +234,13 @@
             if(nearBottom()) loadMore();
         };
         window.addEventListener("scroll", onScroll, { passive: true });
+        live.addEventListener("scroll", onScroll, { passive: true });
         if(nearBottom()) loadMore();
 
-        // в широкоэкранном режиме поиска пока нет
-        const onLayout = () => {
+        // смена режима закрывает поиск; в узкой панели из одних аватарок ему тоже нет места
+        const onLayout = e => {
             if(!document.body.contains(bar)) return document.removeEventListener("im:layout", onLayout);
-            if(isWide() && isOpen()) close();
+            if(isOpen() && (e.detail?.wide !== undefined || isCompact())) close();
         };
         document.addEventListener("im:layout", onLayout);
 
@@ -231,6 +262,17 @@
             update(true);
         }, true);
 
+        // переход из найденного; в широком режиме поиск откроется на новой странице там же, где был
+        const go = url => {
+            if(isWide()) {
+                try {
+                    sessionStorage.setItem(STATE_KEY, JSON.stringify({ q: last ?? "", section, pages, top: live.scrollTop, active: url }));
+                } catch(err) {}
+            }
+
+            window.router ? window.router.navigate(url) : location.assign(url);
+        };
+
         live.addEventListener("click", e => {
             // найденный чат или сообщение открывают диалог
             const entry = e.target.closest(".nim-dialog[data-im-url]");
@@ -238,7 +280,7 @@
                 e.preventDefault();
                 if(e.ctrlKey || e.metaKey || e.shiftKey) return window.open(entry.dataset.imUrl, "_blank");
 
-                return window.router.navigate(entry.dataset.imUrl);
+                return go(entry.dataset.imUrl);
             }
 
             // фото и видео открываются в просмотрщике, как в меню вложений чата
@@ -253,7 +295,23 @@
                 e.preventDefault();
                 return OpenVideo(video.dataset.id.split("_"));
             }
+
+            // «перейти к сообщению» у вложений
+            const goto = e.target.closest(".im-search-att--goto[href]");
+            if(goto && isWide() && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+                e.preventDefault();
+                return go(goto.getAttribute("href"));
+            }
         });
+
+        // в узкой панели все вкладки не помещаются: колесо мыши прокручивает их вбок, как в Telegram
+        live.addEventListener("wheel", e => {
+            const tabs = e.target.closest(".im-search-tabs .ui_tabs");
+            if(!tabs || tabs.scrollWidth <= tabs.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+            e.preventDefault();
+            tabs.scrollLeft += e.deltaY;
+        }, { passive: false });
 
         live.addEventListener("auxclick", e => {
             const entry = e.target.closest(".nim-dialog[data-im-url]");
@@ -261,5 +319,35 @@
         });
 
         if(isOpen()) window.__vkifyInitTabSliderSafe?.();
+
+        // поиск, открытый до перехода в найденный чат
+        let saved = null;
+        try {
+            saved = JSON.parse(sessionStorage.getItem(STATE_KEY) ?? "null");
+            sessionStorage.removeItem(STATE_KEY);
+        } catch(e) {}
+
+        const restore = async () => {
+            if(!saved || !isWide() || isCompact() || !hasList()) return;
+
+            input.value = saved.q;
+            bar.classList.toggle("ui_search_field_empty", saved.q === "");
+            last    = saved.q; // запрос тот же, поэтому выбранная вкладка сохраняется
+            section = saved.section;
+            active  = saved.active;
+            live.classList.add("im-search-live_restored");
+            show();
+
+            await update(true);
+            while(pages < saved.pages && live.querySelector(".im-search-page")?.dataset.next) {
+                const before = pages;
+                await loadMore();
+                if(pages === before) break;
+            }
+            live.scrollTop = saved.top;
+        };
+
+        // при обычной загрузке список чатов ниже ещё не разобран
+        document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", restore, { once: true }) : restore();
     })();
 </script>
