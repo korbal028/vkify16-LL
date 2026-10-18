@@ -134,6 +134,7 @@
     </template>
 
     {script "js/node_modules/knockout/build/output/knockout-latest.js"}
+    {script "js/al_calendar.js"}
     <script>
         // страница может прийти через ajax-переход, поэтому всё внутри своей области видимости
         (() => {
@@ -266,6 +267,7 @@
                 this.onMessagesScroll = (model, e) => {
                     window.Msg.onScroll();
                     if(e.target.scrollTop < 21) window.Msg.loadHistory();
+                    if(e.target.scrollHeight - e.target.scrollTop - e.target.clientHeight < 21) window.Msg.loadNewer();
                 };
 
                 this.onTextareaKeyPress = (model, e) => {
@@ -306,6 +308,18 @@
                     this.lastSync   = Math.floor(Date.now() / 1000);
                     this.typingTimer = null;
 
+                    // после перехода к сообщению или дате лента показывает кусок истории без последних сообщений
+                    this.detached     = false;
+                    this.newerCursor  = 0; // самое новое загруженное id, пока лента оторвана от конца
+                    this.loadingNewer = false;
+                    this.feed         = 0; // меняется при замене ленты, чтобы не дописать в неё устаревший ответ
+                    this.jumpBtn      = this.root.querySelector(".im-chat--jump");
+
+                    this.jumpBtn?.addEventListener("click", e => {
+                        e.preventDefault();
+                        this.detached ? this.showLatest() : this.appEl.scrollTo({ top: this.appEl.scrollHeight, behavior: "smooth" });
+                    });
+
                     this._loadHistory();
                     this._setupPolling();
                     this.scrollToBottom();
@@ -325,7 +339,7 @@
                 }
 
                 onScroll() {
-                    this.atBottom = this.appEl.scrollHeight - this.appEl.scrollTop - this.appEl.clientHeight < 30;
+                    this.atBottom = !this.detached && this.appEl.scrollHeight - this.appEl.scrollTop - this.appEl.clientHeight < 30;
                     this.scheduleFloatingDate();
                 }
 
@@ -385,7 +399,8 @@
                         loaded = true;
                     }
 
-                    if(loaded) this.scrollToBottom();
+                    // в оторванной от конца ленте остаёмся у сообщения, к которому перешли
+                    if(loaded && !this.detached) this.scrollToBottom();
                 }
 
                 // короткий поллинг новых, изменённых и удалённых сообщений
@@ -405,6 +420,8 @@
                                 (data.messages || []).forEach(message => {
                                     if(this.newestId >= message.uuid) return;
                                     this.newestId = message.uuid;
+                                    // лента показывает старую историю — новое подтянется при прокрутке вниз
+                                    if(this.detached) return;
                                     if(window.messages().some(m => m.uuid === message.uuid)) return;
                                     this.addMessage(message);
                                 });
@@ -431,31 +448,40 @@
                     this._floatingDateFrame = requestAnimationFrame(() => {
                         this._floatingDateFrame = null;
                         this.updateFloatingDate();
+                        this.updateJumpButton();
                     });
                 }
 
-                // плашка с датой первого видимого сообщения
+                firstVisibleMessage() {
+                    const top   = this.appEl.getBoundingClientRect().top;
+                    const first = [...this.appEl.querySelectorAll(".im-mess")].find(el => el.getBoundingClientRect().bottom > top);
+
+                    return first ? ko.dataFor(first) : null;
+                }
+
+                // плашка с датой первого видимого сообщения; по нажатию на неё открывается календарь
                 updateFloatingDate() {
                     const wrap = this.appEl.querySelector(".im_floating_date_wrap");
                     const top  = this.appEl.getBoundingClientRect().top;
 
-                    const first = [...this.appEl.querySelectorAll(".im-mess")].find(el => el.getBoundingClientRect().bottom > top);
-                    const msg   = first ? ko.dataFor(first) : null;
+                    const msg  = this.firstVisibleMessage();
                     const dividerAtTop = [...this.appEl.querySelectorAll(".im-chat--day")].some(el => {
                         const rect = el.getBoundingClientRect();
                         return rect.top >= top - 12 && rect.bottom <= top + 50;
                     });
 
                     if(!msg || typeof msg.timing.ts !== "number" || dividerAtTop || this.appEl.scrollHeight <= this.appEl.clientHeight) {
-                        wrap.style.opacity = 0;
+                        wrap.classList.remove("shown");
                         return;
                     }
 
                     wrap.firstElementChild.textContent = window.msgDay(msg.timing.ts);
-                    wrap.style.opacity = 1;
+                    wrap.classList.add("shown");
                 }
 
                 addMessage(message, scroll = true) {
+                    // новое сообщение встаёт в конец переписки, поэтому сначала возвращаемся к последним
+                    if(this.detached) this.showLatest();
                     window.messages.push(message);
                     this.hydrate();
                     if(scroll) this.scrollToBottom();
@@ -571,22 +597,130 @@
                     if(JSON.stringify(window.pinnedMsg()) !== JSON.stringify(msg)) window.pinnedMsg(msg);
                 }
 
-                scrollToMessage(uuid) {
+                scrollToMessage(uuid, behavior = "smooth") {
                     const el = this.appEl.querySelector(`.im-mess[data-uuid="${ uuid }"]`);
                     if(!el) return;
 
-                    el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    el.scrollIntoView({ block: "center", behavior });
                     el.classList.add("im-mess_highlighted");
                     setTimeout(() => el.classList.remove("im-mess_highlighted"), 1500);
                 }
 
-                // догружаем историю, пока исходное сообщение не окажется в ленте
+                // сообщения нет в ленте — показываем кусок истории вокруг него
                 goToMessage(uuid) {
-                    for(let i = 0; i < 30 && !this.historyEnd && !window.messages().some(m => m.uuid === uuid); i++) {
-                        this._loadHistory();
+                    if(window.messages().some(m => m.uuid === uuid)) return this.scrollToMessage(uuid);
+
+                    return this.jump({ msg: uuid });
+                }
+
+                // переход к сообщению ({ msg }) или первому сообщению дня ({ date }); лента отрывается
+                // от последних сообщений, более новые догружаются при прокрутке вниз
+                async jump(params) {
+                    const feed = ++this.feed;
+
+                    let data;
+                    try {
+                        const res = await fetch(`${ API_BASE }/history.json?` + new URLSearchParams(params));
+                        if(!res.ok) throw new Error(res.status);
+                        data = await res.json();
+                    } catch(e) {
+                        console.error("History jump failed", e);
+                        return fastError(window.MSG_STR.error);
                     }
 
-                    this.scrollToMessage(uuid);
+                    if(feed !== this.feed || !data.target || data.messages.length === 0) return;
+                    if(window.messages().some(m => m.uuid === data.target)) return this.scrollToMessage(data.target);
+
+                    window.selectedMsgs.removeAll();
+                    window.messages(data.messages);
+
+                    this.offset      = data.messages[0].uuid;
+                    this.historyEnd  = data.older_end;
+                    this.newerCursor = data.messages[data.messages.length - 1].uuid;
+                    this.detached    = !data.newer_end;
+                    this.atBottom    = false;
+                    // поллинг продолжит с последнего показанного: пропущенное, пока лента была оторвана, не потеряется
+                    if(!this.detached) this.newestId = this.newerCursor;
+
+                    this.hydrate();
+
+                    // само сообщение могло быть скрыто — тогда показываем следующее за ним
+                    const shown = data.messages.find(m => m.uuid >= data.target) ?? data.messages[data.messages.length - 1];
+                    this.scrollToMessage(shown.uuid, "auto");
+                    this.updateJumpButton();
+                }
+
+                async loadNewer() {
+                    if(!this.detached || this.loadingNewer) return;
+
+                    const feed = this.feed;
+                    this.loadingNewer = true;
+
+                    try {
+                        const res = await fetch(`${ API_BASE }/history.json?after=${ this.newerCursor }`);
+                        if(!res.ok) throw new Error(res.status);
+                        const data = await res.json();
+
+                        if(feed === this.feed && this.detached) {
+                            const fresh = data.messages.filter(m => !window.messages().some(x => x.uuid === m.uuid));
+                            if(fresh.length) window.messages.push(...fresh);
+                            if(data.messages.length) this.newerCursor = data.messages[data.messages.length - 1].uuid;
+
+                            if(data.newer_end) {
+                                this.detached = false;
+                                this.newestId = Math.max(this.newestId, this.newerCursor);
+                            }
+
+                            this.hydrate();
+                        }
+                    } catch(e) {
+                        console.error("Newer messages loading failed", e);
+                    }
+
+                    this.loadingNewer = false;
+                    this.updateJumpButton();
+                }
+
+                // вернуть ленту к последним сообщениям
+                showLatest() {
+                    if(this.detached) {
+                        this.feed++;
+                        window.selectedMsgs.removeAll();
+                        window.messages.removeAll();
+
+                        const newest    = this.newestId;
+                        this.offset     = 0;
+                        this.historyEnd = false;
+                        this.detached   = false;
+                        this.newestId   = 0;
+                        this._loadHistory();
+                        this.newestId   = Math.max(this.newestId, newest);
+                        this.fillHistory();
+                    }
+
+                    this.scrollToBottom();
+                    this.atBottom = true;
+                    this.updateJumpButton();
+                }
+
+                // кнопка «к последним сообщениям», когда их не видно
+                updateJumpButton() {
+                    if(!this.jumpBtn) return;
+
+                    const fromBottom = this.appEl.scrollHeight - this.appEl.scrollTop - this.appEl.clientHeight;
+                    this.jumpBtn.classList.toggle("shown", this.detached || fromBottom > this.appEl.clientHeight);
+                }
+
+                // переход к сообщению из поиска по всем чатам: /im?sel=…&msg=…
+                takeJump() {
+                    const params = new URLSearchParams(location.search);
+                    if(!params.has("msg")) return;
+
+                    const uuid = Number(params.get("msg"));
+                    params.delete("msg");
+                    history.replaceState(history.state, "", location.pathname + "?" + params);
+
+                    if(uuid > 0) this.goToMessage(uuid);
                 }
 
                 async _post(url, data = {}) {
@@ -859,6 +993,7 @@
             const messenger = window.Msg = new Messenger();
             messenger.takeForward();
             messenger.fillHistory();
+            messenger.takeJump();
 
             const form = document.querySelector("#write");
             form?.addEventListener("sticker:send", e => {
@@ -1025,6 +1160,10 @@
                 blockTitle: {tr("addition_to_bl")},
                 yes:        {tr("yes")},
                 no:         {tr("no")},
+                search:     {tr("messenger_search_in_chat")},
+                searchHint: {tr("messenger_search_in_chat_placeholder")},
+                notFound:   {tr("no_results_by_this_query")},
+                goToDate:   {tr("messenger_go_to_date")},
             };
 
             let peerInfo = null, peerInfoRequest = null;
@@ -1271,6 +1410,156 @@
                     if(!peerInfo) fetchPeerInfo().then(render).catch(Function.noop);
                 },
             });
+
+            // переход к дате переписки; дни без сообщений в календаре погашены
+            const openCalendar = (message = messenger.firstVisibleMessage()) => {
+                openCalendarModal({
+                    title:       PEER_STR.goToDate,
+                    locale:      MSG_LOCALE,
+                    initialDate: message && typeof message.timing.ts === "number" ? new Date(message.timing.ts * 1000) : new Date(),
+                    loadMonth:   async (year, month) => {
+                        const from = Math.floor(new Date(year, month, 1).getTime() / 1000);
+                        const to   = Math.floor(new Date(year, month + 1, 1).getTime() / 1000);
+                        const tz   = -new Date(year, month, 15).getTimezoneOffset();
+                        const res  = await (await fetch(`${ API_BASE }/calendar.json?from=${ from }&to=${ to }&tz=${ tz }`)).json();
+
+                        // сервер считает номера суток от эпохи уже по местному времени
+                        const days = res.days
+                            .map(day => new Date(day * 86400000))
+                            .filter(day => day.getUTCFullYear() === year && day.getUTCMonth() === month)
+                            .map(day => day.getUTCDate());
+
+                        return {
+                            days,
+                            min: res.first ? new Date(res.first * 1000) : null,
+                            max: res.last ? new Date(res.last * 1000) : null,
+                        };
+                    },
+                    onSelectDate: date => messenger.jump({ date: Math.floor(date.getTime() / 1000) }),
+                });
+            };
+
+            document.querySelector(".im-chat--calendar")?.addEventListener("click", e => {
+                e.preventDefault();
+                openCalendar();
+            });
+
+            // календарь открывается и по нажатию на дату над сообщениями: плавающую или разделитель дня
+            messenger.appEl.addEventListener("click", e => {
+                if(e.target.closest(".im_floating_date_wrap.shown b")) return openCalendar();
+
+                const divider = e.target.closest(".im-chat--day span");
+                if(divider) openCalendar(ko.dataFor(divider));
+            });
+
+            // поиск по сообщениям чата: результаты по мере ввода, следующие — при прокрутке
+            const openMessageSearch = () => {
+                if(document.querySelector(".im-msearch-box")) return;
+
+                const box = new CMessageBox({
+                    title: escapeHtml(PEER_STR.search),
+                    body: `
+                        <div class="ui_search ui_search_field_empty im-msearch--bar">
+                            <div class="ui_search_input_block">
+                                <input type="text" class="ui_search_field" placeholder="${ escapeHtml(PEER_STR.searchHint) }" autocomplete="off" spellcheck="false" />
+                            </div>
+                        </div>
+                        <div class="im-msearch--summary" hidden></div>
+                        <div class="im-msearch--results"></div>
+                    `,
+                    buttons: [],
+                    callbacks: [],
+                });
+
+                const node = box.getNode();
+                node.addClass("im-msearch-box");
+
+                const root    = node.first();
+                const body    = root.querySelector(".ovk-diag-body");
+                const input   = root.querySelector(".ui_search_field");
+                const summary = root.querySelector(".im-msearch--summary");
+                const list    = root.querySelector(".im-msearch--results");
+
+                let search = null, timer = null;
+
+                const renderFound = item => `
+                    <a class="im-msearch--item" data-uuid="${ Number(item.uuid) }">
+                        <img class="im-msearch--ava" src="${ escapeHtml(item.sender.avatar) }" alt="" loading="lazy" />
+                        <div class="im-msearch--body">
+                            <div class="im-msearch--head">
+                                <span class="im-msearch--name">${ escapeHtml(item.sender.name) }</span>
+                                <span class="im-msearch--date">${ escapeHtml(window.msgFullDate(item.ts)) }</span>
+                            </div>
+                            <div class="im-msearch--text">${ item.text }</div>
+                        </div>
+                    </a>`;
+
+                const load = async () => {
+                    const state = search;
+                    if(!state || state.loading || state.done) return;
+                    state.loading = true;
+
+                    try {
+                        const res = await (await fetch(`${ API_BASE }/search.json?q=${ encodeURIComponent(state.q) }&offset=${ state.offset }`)).json();
+                        if(state !== search) return;
+
+                        if(res.count !== null) {
+                            summary.textContent = tr("messenger_search_found", res.count);
+                            summary.hidden = res.count === 0;
+                        }
+
+                        state.offset += res.items.length;
+                        state.done = !res.more;
+                        list.insertAdjacentHTML("beforeend", res.items.map(renderFound).join(""));
+                        if(state.offset === 0) list.innerHTML = `<div class="im-pinfo--empty">${ escapeHtml(PEER_STR.notFound) }</div>`;
+                    } catch(e) {
+                        state.done = true;
+                        fastError(window.MSG_STR.error);
+                    }
+
+                    state.loading = false;
+                    if(!state.done && body.scrollHeight <= body.clientHeight) load();
+                };
+
+                const start = () => {
+                    clearTimeout(timer);
+
+                    const q = input.value.trim();
+                    if((search?.q ?? "") === q) return;
+
+                    list.innerHTML = "";
+                    summary.hidden = true;
+                    search = q === "" ? null : { q, offset: 0, loading: false, done: false };
+                    load();
+                };
+
+                input.addEventListener("input", () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(start, 300);
+                });
+                input.addEventListener("keydown", e => {
+                    if(e.key === "Enter") start();
+                });
+
+                body.addEventListener("scroll", () => {
+                    if(body.scrollTop + body.clientHeight > body.scrollHeight - 100) load();
+                });
+
+                list.addEventListener("click", e => {
+                    const item = e.target.closest(".im-msearch--item[data-uuid]");
+                    if(!item) return;
+
+                    box.close();
+                    messenger.goToMessage(Number(item.dataset.uuid));
+                });
+
+                input.focus();
+            };
+
+            document.querySelector(".im-chat--search")?.addEventListener("click", e => {
+                e.preventDefault();
+                openMessageSearch();
+            });
         })();
     </script>
 {/block}
@@ -1293,6 +1582,8 @@
                     {/if}
                 </div>
                 <div class="im-chat--actions">
+                    <a class="im-chat--search" title="{_messenger_search_in_chat}"></a>
+                    <a class="im-chat--calendar" title="{_messenger_go_to_date}"></a>
                     <a class="im-chat--more" title="{_messenger_more}"></a>
                     <a class="im-chat--ava" title="{_messenger_chat_info}">
                         {if $isSelf}
@@ -1381,6 +1672,7 @@
                     {tr('message_user_typing', $peerFirstName)}
                 </div>
             </div>
+            <a class="im-chat--jump" title="{_messenger_jump_to_recent}"></a>
         </div>
 
         <div class="im-chat--input" data-bind="css: { 'im-chat--input_extra': replyTo() || editMsg() || forwardMsgs().length }">

@@ -228,6 +228,28 @@ body {
     opacity: 1;
 }
 
+/* поиск по сообщениям и переход к дате рядом с аватаркой */
+.im-chat--search,
+.im-chat--calendar {
+    width: 36px;
+    height: 100%;
+    opacity: .7;
+    cursor: pointer;
+}
+
+.im-chat--search {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23828a99' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5L20.5 20.5'/%3E%3C/svg%3E") center / 20px no-repeat;
+}
+
+.im-chat--calendar {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23828a99' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3.5 10h17'/%3E%3C/svg%3E") center / 20px no-repeat;
+}
+
+.im-chat--search:hover,
+.im-chat--calendar:hover {
+    opacity: 1;
+}
+
 .im-chat--ava {
     position: relative;
     display: block;
@@ -403,6 +425,48 @@ body {
     color: var(--muted-text-color-3);
     font-size: 12.5px;
     text-align: center;
+}
+
+/* по нажатию на дату открывается календарь */
+.im-chat--day span,
+.im-chat--history .im_floating_date_wrap.shown b {
+    cursor: pointer;
+}
+
+.im-chat--day span:hover {
+    color: var(--text-color);
+}
+
+/* кнопка «к последним сообщениям», липнет к низу ленты */
+.im-chat--jump {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    align-self: flex-end;
+    display: none;
+    height: 0;
+    margin-right: 16px;
+}
+
+.im-chat--jump.shown {
+    display: block;
+}
+
+.im-chat--jump::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 12px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--module-background-color) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23828a99' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / 18px no-repeat;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .14), 0 0 0 1px var(--border-color);
+    cursor: pointer;
+}
+
+.im-chat--jump:hover::before {
+    background-color: var(--module-background-color--secondary);
 }
 
 /* сообщения */
@@ -1755,6 +1819,92 @@ body {
     padding: 40px 0;
     color: var(--muted-text-color-3);
     text-align: center;
+}
+
+/* окно «Поиск по сообщениям» */
+.im-msearch-box .ovk-diag-body {
+    height: 440px;
+    max-height: 70vh;
+    padding: 0 !important;
+    overflow-y: auto;
+}
+
+.im-msearch-box .ovk-diag-action:empty {
+    display: none;
+}
+
+.im-msearch--bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.im-msearch--summary {
+    padding: 10px 20px 4px;
+    color: var(--muted-text-color-3);
+    font-size: 12.5px;
+}
+
+.im-msearch--item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 20px;
+    color: var(--text-color);
+    cursor: pointer;
+    text-decoration: none !important;
+}
+
+.im-msearch--item:hover {
+    background: var(--module-background-color--secondary);
+}
+
+.im-msearch--ava {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.im-msearch--body {
+    flex: 1;
+    min-width: 0;
+}
+
+.im-msearch--head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.im-msearch--name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--link-color);
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.im-msearch--date {
+    flex: none;
+    color: var(--muted-text-color-3);
+    font-size: 12px;
+}
+
+.im-msearch--text {
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+}
+
+.im-msearch--text .im-search-hl {
+    padding: 0 1px;
+    border-radius: 2px;
+    background: var(--im-selected-bg);
+    color: inherit;
+    font-weight: 500;
 }
 
 /* окно "Новое сообщение" */
