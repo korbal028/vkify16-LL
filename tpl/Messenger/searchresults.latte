@@ -1,0 +1,98 @@
+{* результаты поиска по всем чатам: на странице поиска и во фрагменте, который поиск подставляет по мере ввода *}
+{var $searchTabs = []}
+{foreach $counts as $name => $count}
+    {php $searchTabs[] = [
+        'url'    => '/im/search?' . http_build_query(['q' => $query !== '' ? $query : null, 'section' => $name]),
+        'title'  => "messenger_search_$name",
+        'active' => $section === $name,
+        'count'  => $query !== '' || !in_array($name, ['chats', 'messages'], true) ? $count : 0,
+        'attrs'  => ['data-section' => $name],
+    ]}
+{/foreach}
+
+<div class="im-search-tabs">
+    {include "../components/page_tabs_header.latte", tabs => $searchTabs, id => 'im_search_tabs'}
+</div>
+
+{* data-items — куда дописывать следующие страницы, data-next — откуда их брать *}
+<div class="im-search-page" data-next="{$nextPage}">
+    {if $section === "messages" && $query === ""}
+        {include "../components/content_error.latte", description => tr("messenger_search_enter_query")}
+    {elseif sizeof($results) === 0}
+        {var $emptyText = $section === "chats" && $query === "" ? tr("no_messages") : (in_array($section, ["chats", "messages"], true) ? tr("no_results_by_this_query") : tr("messenger_info_empty"))}
+        {include "../components/content_error.latte", description => $emptyText}
+    {elseif $section === "chats"}
+        <ul class="im-page--dcontent" data-items>
+            {include "entries.latte", corresps => $results, dialogSettings => [], thisUser => $thisUser, hideMenu => true}
+        </ul>
+    {elseif $section === "messages"}
+        <ul class="im-page--dcontent" data-items>
+            <li n:foreach="$results as $found" class="nim-dialog nim-dialog_classic im-search-msg" data-im-url="{$found->url}">
+                <div class="nim-dialog--photo">
+                    <div class="nim-peer">
+                        <div class="nim-peer--photo-w">
+                            <div class="nim-peer--photo">
+                                <div class="im_grid">
+                                    {if $found->saved}
+                                        <img src="/assets/packages/static/openvk/img/im/saved_messages.png" class="avatar" width="50" alt="{_saved_messages}" loading="lazy" />
+                                    {else}
+                                        {include '../components/avatar.latte', author => $found->peer, size => 'miniscule', width => 50, height => 50, alt => tr('photo'), loading => 'lazy'}
+                                    {/if}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nim-dialog--content">
+                    <div class="nim-dialog--cw">
+                        <div class="nim-dialog--date_wrapper">
+                            <div class="nim-dialog--date">{$found->message->getSendTime()}</div>
+                        </div>
+                        <div class="nim-dialog--name">
+                            <span class="nim-dialog--name-w">{$found->saved ? tr("saved_messages") : $found->peer->getCanonicalName()}</span>
+                        </div>
+                        <div class="nim-dialog--text-preview">
+                            <span class="nim-dialog--preview">
+                                <span class="nim-dialog--inner-text">{$found->text|noescape}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </li>
+        </ul>
+    {elseif $section === "photo" || $section === "gif"}
+        <div class="im-search-grid" data-items>
+            <div n:foreach="$results as $found" class="im-search-att">
+                {if $section === "photo"}
+                    <a class="im-peer-att--photo" href="/photo{$found->att['id']}" data-id="{$found->att['id']}" data-url="{$found->att['url']}"><img src="{$found->att['thumb']}" alt="" loading="lazy" /></a>
+                {else}
+                    <a class="im-peer-att--photo" href="{$found->att['link']}"><img src="{$found->att['url']}" alt="" loading="lazy" /></a>
+                {/if}
+                <a class="im-search-att--goto" href="{$found->url}" title="{_messenger_search_go_to_message}">{$found->chat}</a>
+            </div>
+        </div>
+    {else}
+        <div class="im-search-rows" data-items>
+            <div n:foreach="$results as $found" class="im-search-att-row">
+                {if $section === "video"}
+                    <a class="im-peer-att--row im-peer-att--video" data-id="{$found->att['id']}">
+                        <img src="{$found->att['thumb']}" alt="" loading="lazy" />
+                        <span class="im-peer-att--name">{$found->att['name']}</span>
+                        <span class="im-peer-att--meta">{$found->att['length']}</span>
+                    </a>
+                {elseif $section === "doc"}
+                    <a class="im-peer-att--row" href="{$found->att['link']}">
+                        <img n:if="$found->att['preview']" src="{$found->att['preview']}" alt="" loading="lazy" />
+                        <span n:if="!$found->att['preview']" class="im-peer-att--ext">{$found->att['ext']}</span>
+                        <span class="im-peer-att--name">{$found->att['name']}</span>
+                        <span class="im-peer-att--meta">{$found->att['size']}</span>
+                    </a>
+                {else}
+                    <div class="im-peer-att--audio">{$found->att['html']|noescape}</div>
+                {/if}
+                <a class="im-search-att--goto" href="{$found->url}" title="{_messenger_search_go_to_message}">{$found->chat}</a>
+            </div>
+        </div>
+    {/if}
+</div>

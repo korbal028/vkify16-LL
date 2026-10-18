@@ -1,0 +1,14 @@
+{extends "../@layout.latte"}
+
+{block title}{_messenger_search_title}{if $query !== ""} — {$query}{/if}{/block}
+
+{* страница поиска, если открыть её ссылкой или обновить; поиск здесь всегда открыт, крестик возвращает к чатам *}
+{block content}
+    <div class="im-layout im-layout_list">
+        <div class="im-layout--side">
+            <div class="im-dialogs im-dialogs_searching">
+                {include "searchbar.latte", query => $query, open => true}
+            </div>
+        </div>
+    </div>
+{/block}

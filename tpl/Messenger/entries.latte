@@ -96,7 +96,7 @@ if (!function_exists('vkify_truncate_html')) {
                 <div class="nim-dialog--date_wrapper">
                     <span class="nim-dialog--pin" n:if="$settings['pinned']" title="{_messenger_chat_pinned}"></span>
                     <div class="nim-dialog--date">{$lastMsg->getSendTimeHumanized()}</div>
-                    <a class="nim-dialog--menu" title="{_messenger_more}"></a>
+                    <a n:if="!($hideMenu ?? false)" class="nim-dialog--menu" title="{_messenger_more}"></a>
                 </div>
 
                 <div class="nim-dialog--name">

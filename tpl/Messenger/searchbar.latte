@@ -1,0 +1,265 @@
+{* поиск по всем чатам над списком диалогов, только в обычном режиме; open — поиск уже открыт (страница /im/search) *}
+{var $searchQuery = $query ?? ''}
+<div n:class="ui_search, im-search, $searchQuery === '' ? ui_search_field_empty, ($open ?? false) ? im-search_open">
+    <div class="ui_search_input_block">
+        <form action="/im/search" method="get" autocomplete="off">
+            <input type="text" class="ui_search_field" name="q" value="{$searchQuery}" placeholder="{_messenger_search_placeholder}" autocorrect="off" autocapitalize="none" spellcheck="false" />
+        </form>
+        <div class="im-search--close" title="{_close}"></div>
+    </div>
+</div>
+
+{* результаты поиска: вкладки и найденное; пока поиск открыт, вместо списка чатов *}
+<div class="im-search-live">
+    {if $open ?? false}
+        {include "searchresults.latte"}
+    {/if}
+</div>
+
+<script>
+    // как в Telegram: нажатие на строку открывает поиск с вкладками вместо списка чатов, крестик или Esc закрывают его;
+    // результаты обновляются по мере ввода и догружаются при прокрутке
+    (() => {
+        const bar  = document.querySelector(".im-search");
+        const live = document.querySelector(".im-search-live");
+        if(!bar || !live) return;
+
+        const input   = bar.querySelector(".ui_search_field");
+        const cross   = bar.querySelector(".im-search--close");
+        const box     = bar.closest(".im-dialogs");
+        const layout  = box.closest(".im-layout");
+        // список чатов стоит ниже этого скрипта, поэтому ищем его при каждом обращении; на странице поиска его нет
+        const hasList = () => !!box.querySelector(".im-dialogs--body");
+        const mobile  = window.matchMedia("(max-width: 768px)");
+        const initial = location.pathname + location.search;
+
+        const isWide = () => !!layout?.classList.contains("im-layout_wide") && !mobile.matches;
+        const isOpen = () => box.classList.contains("im-dialogs_searching");
+
+        // вкладка, выбранная вручную; без неё раздел выбирает сервер
+        let section = new URLSearchParams(location.search).get("section");
+        let last    = isOpen() ? input.value.trim() : null;
+        let timer   = null;
+        let abort   = null;
+        let version = 0;
+        let loading = false;
+
+        const searchUrl = (base, q) => {
+            const params = new URLSearchParams();
+            if(q !== "") params.set("q", q);
+            if(section) params.set("section", section);
+
+            return base + (params.toString() ? "?" + params : "");
+        };
+
+        const nearBottom = () => window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 300;
+
+        const slideTo = (tabs, tab) => {
+            if(!tabs || !tab || !window.__vkifyMoveTabSlider) return;
+
+            window.__vkifyMoveTabSlider(tabs, tab, true);
+            clearTimeout(tabs._imSlideTimer);
+            tabs._imSlideTimer = setTimeout(() => tabs.classList.remove("ui_tabs_sliding"), 250);
+        };
+
+        // вкладки обновляются на месте, чтобы ползунок плавно переезжал, а найденное заменяется целиком
+        const render = html => {
+            const fresh = document.createElement("template");
+            fresh.innerHTML = html;
+
+            const tabs = live.querySelector(".im-search-tabs .ui_tabs");
+            if(!tabs) {
+                live.replaceChildren(fresh.content);
+                return window.__vkifyInitTabSliderSafe?.();
+            }
+
+            let selected = null;
+            fresh.content.querySelectorAll(".ui_tab[data-section]").forEach(src => {
+                const tab = tabs.querySelector(`.ui_tab[data-section="${ src.dataset.section }"]`);
+                if(!tab) return;
+
+                tab.innerHTML = src.innerHTML;
+                tab.setAttribute("href", src.getAttribute("href"));
+                tab.classList.toggle("ui_tab_sel", src.classList.contains("ui_tab_sel"));
+                if(tab.classList.contains("ui_tab_sel")) selected = tab;
+            });
+            slideTo(tabs, selected);
+
+            live.querySelector(".im-search-page").replaceWith(fresh.content.querySelector(".im-search-page"));
+        };
+
+        const loadMore = async () => {
+            const page = live.querySelector(".im-search-page");
+            if(!isOpen() || loading || !page?.dataset.next) return;
+
+            const current = version;
+            loading = true;
+
+            try {
+                const res = await fetch(page.dataset.next);
+                if(!res.ok) throw new Error(res.status);
+                const next = new DOMParser().parseFromString(await res.text(), "text/html");
+
+                if(current === version) {
+                    page.querySelector("[data-items]")?.append(...(next.querySelector("[data-items]")?.children ?? []));
+                    page.dataset.next = next.querySelector(".im-search-page")?.dataset.next ?? "";
+                }
+            } catch(e) {
+                page.dataset.next = "";
+                console.error("Search page loading failed", e);
+            }
+
+            loading = false;
+            if(current === version && nearBottom()) loadMore();
+        };
+
+        const update = async (force = false) => {
+            clearTimeout(timer);
+
+            const q = input.value.trim();
+            if(q === last && !force) return;
+
+            // вложения по запросу не фильтруются, поэтому новый запрос уводит с них к чатам или сообщениям
+            if(q !== last && q !== "" && section !== "chats" && section !== "messages") section = null;
+            last = q;
+
+            abort?.abort();
+            abort = new AbortController();
+            const current = ++version;
+            live.classList.add("loading");
+
+            try {
+                const res = await fetch(searchUrl("/im/api/search", q), { signal: abort.signal });
+                if(!res.ok) throw new Error(res.status);
+                const html = await res.text();
+                if(current !== version) return;
+
+                render(html);
+                history.replaceState(history.state, "", q === "" && !section && hasList() ? initial : searchUrl("/im/search", q));
+                if(nearBottom()) loadMore();
+            } catch(e) {
+                if(e.name !== "AbortError") console.error("Search failed", e);
+            }
+
+            if(current === version) live.classList.remove("loading");
+        };
+
+        const open = () => {
+            if(isOpen() || isWide()) return;
+
+            box.classList.add("im-dialogs_searching");
+            bar.classList.add("im-search_open");
+            update(true);
+        };
+
+        const close = () => {
+            // на странице поиска списка чатов нет: закрыть поиск — значит вернуться к чатам
+            if(!hasList()) return window.router ? window.router.navigate("/im") : location.assign("/im");
+
+            clearTimeout(timer);
+            abort?.abort();
+            ++version;
+
+            input.value = "";
+            input.blur();
+            section = null;
+            last    = null;
+
+            box.classList.remove("im-dialogs_searching");
+            bar.classList.remove("im-search_open");
+            bar.classList.add("ui_search_field_empty");
+            live.replaceChildren();
+            live.classList.remove("loading");
+            history.replaceState(history.state, "", initial);
+        };
+
+        input.addEventListener("focus", open);
+
+        input.addEventListener("input", () => {
+            open();
+            clearTimeout(timer);
+            timer = setTimeout(update, 300);
+        });
+
+        input.addEventListener("keydown", e => {
+            if(e.key !== "Escape") return;
+
+            e.preventDefault();
+            close();
+        });
+
+        // без этого нажатие на крестик сначала уводит фокус с поля
+        cross.addEventListener("mousedown", e => e.preventDefault());
+        cross.addEventListener("click", close);
+
+        // Enter ищет сразу, без перехода на другую страницу
+        bar.querySelector("form").addEventListener("submit", e => {
+            e.preventDefault();
+            open();
+            update();
+        });
+
+        const onScroll = () => {
+            if(!document.body.contains(bar)) return window.removeEventListener("scroll", onScroll);
+            if(nearBottom()) loadMore();
+        };
+        window.addEventListener("scroll", onScroll, { passive: true });
+        if(nearBottom()) loadMore();
+
+        // в широкоэкранном режиме поиска пока нет
+        const onLayout = () => {
+            if(!document.body.contains(bar)) return document.removeEventListener("im:layout", onLayout);
+            if(isWide() && isOpen()) close();
+        };
+        document.addEventListener("im:layout", onLayout);
+
+        // вкладки переключаются на месте; перехватываем раньше общего обработчика вкладок, который переходит по ссылке
+        live.addEventListener("click", e => {
+            const tab = e.target.closest(".im-search-tabs .ui_tab[data-section]");
+            if(!tab) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            if(tab.classList.contains("ui_tab_sel")) return;
+
+            const tabs = tab.closest(".ui_tabs");
+            tabs.querySelector(".ui_tab_sel")?.classList.remove("ui_tab_sel");
+            tab.classList.add("ui_tab_sel");
+            slideTo(tabs, tab);
+
+            section = tab.dataset.section;
+            update(true);
+        }, true);
+
+        live.addEventListener("click", e => {
+            // найденный чат или сообщение открывают диалог
+            const entry = e.target.closest(".nim-dialog[data-im-url]");
+            if(entry && !e.target.closest("a[href]")) {
+                e.preventDefault();
+                if(e.ctrlKey || e.metaKey || e.shiftKey) return window.open(entry.dataset.imUrl, "_blank");
+
+                return window.router.navigate(entry.dataset.imUrl);
+            }
+
+            // фото и видео открываются в просмотрщике, как в меню вложений чата
+            const photo = e.target.closest(".im-peer-att--photo[data-id]");
+            if(photo) {
+                e.preventDefault();
+                return OpenMiniature(e, photo.dataset.url, null, photo.dataset.id, null);
+            }
+
+            const video = e.target.closest(".im-peer-att--video[data-id]");
+            if(video) {
+                e.preventDefault();
+                return OpenVideo(video.dataset.id.split("_"));
+            }
+        });
+
+        live.addEventListener("auxclick", e => {
+            const entry = e.target.closest(".nim-dialog[data-im-url]");
+            if(entry && e.button === 1 && !e.target.closest("a[href]")) window.open(entry.dataset.imUrl, "_blank");
+        });
+
+        if(isOpen()) window.__vkifyInitTabSliderSafe?.();
+    })();
+</script>
