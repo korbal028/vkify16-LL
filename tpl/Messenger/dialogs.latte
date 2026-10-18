@@ -180,6 +180,8 @@
                     fresh.forEach(el => list.querySelector(`.nim-dialog[data-sel="${ el.dataset.sel }"]`)?.remove());
                     list.prepend(...fresh);
                 }
+                // чат с новым сообщением встаёт первым среди обычных, закреплённые всегда остаются над ним
+                list.prepend(...list.querySelectorAll(":scope > .nim-dialog.nim-dialog_pinned"));
                 markActive();
             } catch(e) {
                 console.error("Dialogs list refresh failed", e);
