@@ -128,7 +128,7 @@
 
         // режим может смениться рычажком без перезагрузки, поэтому проверяем на месте
         const isWide   = () => !!layout?.classList.contains("im-layout_wide") && !mobile.matches;
-        const isHidden = () => box.offsetParent === null || box.classList.contains("im-dialogs_searching");
+        const isHidden = () => box.offsetParent === null || box.classList.contains("im-dialogs_searching") || box.classList.contains("im-dialogs_msearch");
 
         let drag = null, justDragged = false;
         let loadedPages = 1, listEnd = false, loadingPage = false;

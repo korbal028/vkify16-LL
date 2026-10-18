@@ -1164,6 +1164,7 @@
                 searchHint: {tr("messenger_search_in_chat_placeholder")},
                 notFound:   {tr("no_results_by_this_query")},
                 goToDate:   {tr("messenger_go_to_date")},
+                close:      {tr("close")},
             };
 
             let peerInfo = null, peerInfoRequest = null;
@@ -1452,30 +1453,22 @@
                 if(divider) openCalendar(ko.dataFor(divider));
             });
 
-            // поиск по сообщениям чата: результаты по мере ввода, следующие — при прокрутке
-            const openMessageSearch = () => {
-                if(document.querySelector(".im-msearch-box")) return;
+            // поиск по сообщениям чата: результаты по мере ввода, следующие — при прокрутке.
+            // Обычный режим — в окне, широкоэкранный — в левой панели поверх списка чатов, как в Telegram
+            const msearchMarkup = `
+                <div class="ui_search ui_search_field_empty im-msearch--bar">
+                    <div class="ui_search_input_block">
+                        <input type="text" class="ui_search_field" placeholder="${ escapeHtml(PEER_STR.searchHint) }" autocomplete="off" spellcheck="false" />
+                        <div class="im-search--close" title="${ escapeHtml(PEER_STR.close) }"></div>
+                    </div>
+                </div>`;
 
-                const box = new CMessageBox({
-                    title: escapeHtml(PEER_STR.search),
-                    body: `
-                        <div class="ui_search ui_search_field_empty im-msearch--bar">
-                            <div class="ui_search_input_block">
-                                <input type="text" class="ui_search_field" placeholder="${ escapeHtml(PEER_STR.searchHint) }" autocomplete="off" spellcheck="false" />
-                            </div>
-                        </div>
-                        <div class="im-msearch--summary" hidden></div>
-                        <div class="im-msearch--results"></div>
-                    `,
-                    buttons: [],
-                    callbacks: [],
-                });
+            const msearchResults = `
+                <div class="im-msearch--summary" hidden></div>
+                <div class="im-msearch--results"></div>`;
 
-                const node = box.getNode();
-                node.addClass("im-msearch-box");
-
-                const root    = node.first();
-                const body    = root.querySelector(".ovk-diag-body");
+            // root — где поле и результаты, scroller — что прокручивается, onPick — нажатие на найденное
+            const bindMessageSearch = (root, scroller, onPick) => {
                 const input   = root.querySelector(".ui_search_field");
                 const summary = root.querySelector(".im-msearch--summary");
                 const list    = root.querySelector(".im-msearch--results");
@@ -1518,7 +1511,7 @@
                     }
 
                     state.loading = false;
-                    if(!state.done && body.scrollHeight <= body.clientHeight) load();
+                    if(!state.done && scroller.scrollHeight <= scroller.clientHeight) load();
                 };
 
                 const start = () => {
@@ -1529,6 +1522,7 @@
 
                     list.innerHTML = "";
                     summary.hidden = true;
+                    scroller.scrollTop = 0;
                     search = q === "" ? null : { q, offset: 0, loading: false, done: false };
                     load();
                 };
@@ -1541,24 +1535,96 @@
                     if(e.key === "Enter") start();
                 });
 
-                body.addEventListener("scroll", () => {
-                    if(body.scrollTop + body.clientHeight > body.scrollHeight - 100) load();
+                scroller.addEventListener("scroll", () => {
+                    if(scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 100) load();
                 });
 
                 list.addEventListener("click", e => {
                     const item = e.target.closest(".im-msearch--item[data-uuid]");
-                    if(!item) return;
-
-                    box.close();
-                    messenger.goToMessage(Number(item.dataset.uuid));
+                    if(item) onPick(item);
                 });
 
                 input.focus();
             };
 
+            const openMessageSearchBox = () => {
+                if(document.querySelector(".im-msearch-box")) return;
+
+                const box = new CMessageBox({
+                    title:     escapeHtml(PEER_STR.search),
+                    body:      msearchMarkup + msearchResults,
+                    buttons:   [],
+                    callbacks: [],
+                });
+
+                const node = box.getNode();
+                node.addClass("im-msearch-box");
+
+                const root = node.first();
+                root.querySelector(".im-search--close").remove();
+                bindMessageSearch(root, root.querySelector(".ovk-diag-body"), item => {
+                    box.close();
+                    messenger.goToMessage(Number(item.dataset.uuid));
+                });
+            };
+
+            const layout     = document.querySelector(".im-layout");
+            const sideBox    = layout?.querySelector(".im-layout--side .im-dialogs");
+            const mobileMq   = window.matchMedia("(max-width: 768px)");
+            const panelFits  = () => !!layout?.classList.contains("im-layout_wide") && !layout.classList.contains("im-layout_compact") && !mobileMq.matches;
+            const msearchPanel = () => sideBox?.querySelector(".im-msearch-panel");
+
+            const closeMessageSearchPanel = () => {
+                msearchPanel()?.remove();
+                sideBox?.classList.remove("im-dialogs_msearch");
+            };
+
+            const openMessageSearchPanel = () => {
+                const opened = msearchPanel();
+                if(opened) return opened.querySelector(".ui_search_field").focus();
+
+                const panel = document.createElement("div");
+                panel.className = "im-msearch-panel";
+                panel.innerHTML = `
+                    <div class="im-msearch-panel--head">
+                        <span class="im-msearch-panel--title">${ escapeHtml(PEER_STR.search) }</span>
+                        <span class="im-msearch-panel--peer">${ escapeHtml({$peerName}) }</span>
+                    </div>
+                    ${ msearchMarkup }
+                    <div class="im-msearch-panel--body">${ msearchResults }</div>`;
+                panel.querySelector(".im-msearch--bar").classList.add("im-search_open");
+
+                sideBox.append(panel);
+                sideBox.classList.add("im-dialogs_msearch");
+
+                const input = panel.querySelector(".ui_search_field");
+                panel.querySelector(".im-search--close").addEventListener("mousedown", e => e.preventDefault());
+                panel.querySelector(".im-search--close").addEventListener("click", closeMessageSearchPanel);
+                input.addEventListener("keydown", e => {
+                    if(e.key !== "Escape") return;
+
+                    e.preventDefault();
+                    closeMessageSearchPanel();
+                });
+
+                // в панели результаты остаются, найденное подсвечено как открытое
+                bindMessageSearch(panel, panel.querySelector(".im-msearch-panel--body"), item => {
+                    panel.querySelectorAll(".im-msearch--item_active").forEach(el => el.classList.remove("im-msearch--item_active"));
+                    item.classList.add("im-msearch--item_active");
+                    messenger.goToMessage(Number(item.dataset.uuid));
+                });
+            };
+
+            // смена режима или узкая панель из одних аватарок закрывают поиск в панели
+            const onMsearchLayout = () => {
+                if(!messenger.alive) return document.removeEventListener("im:layout", onMsearchLayout);
+                if(msearchPanel() && !panelFits()) closeMessageSearchPanel();
+            };
+            document.addEventListener("im:layout", onMsearchLayout);
+
             document.querySelector(".im-chat--search")?.addEventListener("click", e => {
                 e.preventDefault();
-                openMessageSearch();
+                panelFits() && sideBox ? openMessageSearchPanel() : openMessageSearchBox();
             });
 
             // Esc возвращает из чата к списку диалогов, как в Telegram: сначала он снимает выделение, редактирование, ответ
@@ -1583,7 +1649,8 @@
                 if(window.replyTo()) return messenger.clearReply();
                 if(window.forwardMsgs().length) return messenger.clearForward();
 
-                // в широкоэкранном режиме сначала закрывается поиск в панели
+                // в широкоэкранном режиме сначала закрывается поиск в панели: по чату, потом по всем чатам
+                if(msearchPanel()) return closeMessageSearchPanel();
                 const searchClose = document.querySelector(".im-dialogs_searching .im-search--close");
                 if(searchClose?.offsetParent) return searchClose.click();
 

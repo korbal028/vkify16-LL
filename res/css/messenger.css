@@ -1401,6 +1401,75 @@ body {
         display: none;
     }
 
+    /* поиск по сообщениям чата в панели: поверх списка чатов и поиска по всем чатам */
+    .im-layout_wide .im-dialogs_msearch > :not(.im-msearch-panel) {
+        display: none !important;
+    }
+
+    .im-msearch-panel {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        animation: im-search-in .15s ease;
+    }
+
+    .im-msearch-panel--head {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 54px;
+        padding: 0 20px;
+        box-sizing: border-box;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--module-header-background-color);
+    }
+
+    .im-msearch-panel--title {
+        color: var(--text-color);
+        font-weight: 500;
+    }
+
+    .im-msearch-panel--peer {
+        overflow: hidden;
+        color: var(--muted-text-color-3);
+        font-size: 12.5px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .im-msearch-panel .im-msearch--bar {
+        flex: none;
+        border-radius: 0;
+    }
+
+    .im-msearch-panel--body {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color-3) transparent;
+    }
+
+    .im-msearch-panel .im-msearch--summary {
+        padding: 10px 15px 4px;
+    }
+
+    .im-msearch-panel .im-msearch--item {
+        padding: 10px 15px;
+    }
+
+    .im-msearch-panel .im-msearch--item.im-msearch--item_active {
+        background: var(--im-selected-bg);
+    }
+
+    .im-msearch-panel .im-msearch--date {
+        font-size: 11.5px;
+    }
+
     .im-layout_wide .im-dialogs .tabs_header {
         flex: none;
         overflow: hidden;
