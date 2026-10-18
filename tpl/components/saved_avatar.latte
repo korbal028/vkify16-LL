@@ -1,0 +1,9 @@
+{*
+  Аватарка «Избранного»: светлая и тёмная, нужную показывает тема по body.dark-mode,
+  так что она меняется и при переключении тёмной темы без перезагрузки
+
+  @param width   размер, px
+  @param height  (optional) высота, по умолчанию как ширина
+*}
+{var $savedAvaBase = '/themepack/vkify16/' . $theme->getVersion() . '/resource/'}
+<img src="{$savedAvaBase}saved_messages.png" class="avatar im-saved-ava im-saved-ava_light" width="{$width}" height="{$height ?? $width}" alt="{_saved_messages}" loading="lazy" /><img src="{$savedAvaBase}saved_messages_dark.png" class="avatar im-saved-ava im-saved-ava_dark" width="{$width}" height="{$height ?? $width}" alt="{_saved_messages}" loading="lazy" />

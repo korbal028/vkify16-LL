@@ -142,7 +142,9 @@
             const IS_SELF   = {$isSelf};
             const CSRF      = {$csrfToken};
             const API_BASE  = "/im/api/messages" + PEER_ID;
-            const SAVED_AVATAR = "/assets/packages/static/openvk/img/im/saved_messages.png";
+            // аватарка «Избранного»: светлая и тёмная, нужную показывает тема (см. components/saved_avatar.latte)
+            const SAVED_AVATAR = {'/themepack/vkify16/' . $theme->getVersion() . '/resource/saved_messages'};
+            const SAVED_AVATAR_HTML = `<img class="im-saved-ava im-saved-ava_light" src="${ SAVED_AVATAR }.png" alt="" /><img class="im-saved-ava im-saved-ava_dark" src="${ SAVED_AVATAR }_dark.png" alt="" />`;
             window.MSG_ME   = {$thisUser->getId()};
 
             window.MSG_STR = {
@@ -767,7 +769,7 @@
                             const res = await (await fetch(`/im/api/dialogs.json?p=${ page }&archived=${ archived }`)).json();
                             list.insertAdjacentHTML("beforeend", res.items.map(d => `
                                 <a class="im-fwd-picker--item" data-id="${ d.id }">
-                                    <img src="${ escapeHtml(d.id === window.MSG_ME ? SAVED_AVATAR : d.avatar) }" alt="" />
+                                    ${ d.id === window.MSG_ME ? SAVED_AVATAR_HTML : `<img src="${ escapeHtml(d.avatar) }" alt="" />` }
                                     <span>${ escapeHtml(d.id === window.MSG_ME ? window.MSG_STR.saved : d.name) }</span>
                                 </a>
                             `).join(""));
@@ -1700,7 +1702,7 @@
                     <a class="im-chat--more" title="{_messenger_more}"></a>
                     <a class="im-chat--ava" title="{_messenger_chat_info}">
                         {if $isSelf}
-                            <img src="/assets/packages/static/openvk/img/im/saved_messages.png" class="avatar" width="30" height="30" alt="{_saved_messages}" />
+                            {include '../components/saved_avatar.latte', width => 30}
                         {else}
                             {include '../components/avatar.latte', author => $correspondent, size => 'miniscule', width => 30, height => 30, alt => $peerName}
                         {/if}
@@ -1860,7 +1862,7 @@
                     <button type="button" class="im-chat-input--send" title="{_send}" data-bind="click: sendMessage"></button>
                     <a class="im-chat-input--ava im-chat-input--peer-ava" href="{$isSelf ? $thisUser->getURL() : $correspondent->getURL()}">
                         {if $isSelf}
-                            <img src="/assets/packages/static/openvk/img/im/saved_messages.png" class="avatar" width="36" height="36" alt="{_saved_messages}" />
+                            {include '../components/saved_avatar.latte', width => 36}
                         {else}
                             {include '../components/avatar.latte', author => $correspondent, size => 'miniscule', width => 36, height => 36, alt => $peerName}
                         {/if}

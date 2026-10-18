@@ -81,7 +81,7 @@ if (!function_exists('vkify_truncate_html')) {
                     <div class="nim-peer--photo">
                         <div class="im_grid">
                             {if $isSaved}
-                                <img src="/assets/packages/static/openvk/img/im/saved_messages.png" class="avatar" width="50" alt="{_saved_messages}" loading="lazy" />
+                                {include '../components/saved_avatar.latte', width => 50}
                             {else}
                                 {include '../components/avatar.latte', author => $recipient, size => 'miniscule', width => 50, height => 50, alt => tr('photo'), loading => 'lazy'}
                             {/if}
