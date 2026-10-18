@@ -143,7 +143,7 @@
             const CSRF      = {$csrfToken};
             const API_BASE  = "/im/api/messages" + PEER_ID;
             // аватарка «Избранного»: светлая и тёмная, нужную показывает тема (см. components/saved_avatar.latte)
-            const SAVED_AVATAR = {'/themepack/vkify16/' . $theme->getVersion() . '/resource/saved_messages'};
+            const SAVED_AVATAR = {='/themepack/vkify16/' . $theme->getVersion() . '/resource/saved_messages'};
             const SAVED_AVATAR_HTML = `<img class="im-saved-ava im-saved-ava_light" src="${ SAVED_AVATAR }.png" alt="" /><img class="im-saved-ava im-saved-ava_dark" src="${ SAVED_AVATAR }_dark.png" alt="" />`;
             window.MSG_ME   = {$thisUser->getId()};
 
