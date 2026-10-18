@@ -4852,3 +4852,23 @@ body.banned {
 .post-spoiler.revealed .post-spoiler-content {
     display: inline;
 }
+
+/* удаление чужой записи администрацией: красный пункт в «троеточии» и красная кнопка в окне с причиной */
+body .tippy-box .tippy-menu a.moderation_delete {
+    color: #e64646;
+}
+
+body .tippy-box .tippy-menu a.moderation_delete:hover {
+    background-color: rgba(230, 70, 70, .1);
+}
+
+.moderation-delete-dialog .ovk-diag-action > button.moderation-delete-btn,
+.moderation-delete-dialog .ovk-diag-action > button.moderation-delete-btn:hover {
+    border-color: #e64646;
+    background: #e64646;
+    color: #fff;
+}
+
+.moderation-delete-dialog .ovk-diag-action > button.moderation-delete-btn:hover {
+    background: #d63c3c;
+}
