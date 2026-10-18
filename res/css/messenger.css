@@ -116,6 +116,11 @@ body {
     vertical-align: -3px;
 }
 
+/* переносы строк в превью — в одну строку */
+.nim-dialog--inner-text br {
+    display: none;
+}
+
 /* перетаскивание закреплённых */
 .im-page--dragging {
     user-select: none;
