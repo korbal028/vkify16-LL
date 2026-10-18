@@ -656,6 +656,7 @@
                                         <label class="checkbox"><input type="checkbox" name="menu_novajoj" n:attr="checked => $user->getLeftMenuItemStatus('news')"><span>{_my_feed}</span></label>
                                         <label class="checkbox"><input type="checkbox" name="menu_aplikoj" n:attr="checked => $user->getLeftMenuItemStatus('apps')"><span>{_my_apps}</span></label>
                                         <label class="checkbox"><input type="checkbox" name="menu_doxc" n:attr="checked => $user->getLeftMenuItemStatus('docs')"><span>{_my_documents}</span></label>
+                                        <label class="checkbox"><input type="checkbox" name="menu_stickers" n:attr="checked => $user->getLeftMenuItemStatus('stickers')"><span>{_stickers_store}</span></label>
                                         <label class="checkbox"><input type="checkbox" name="menu_feva" n:attr="checked => $user->getLeftMenuItemStatus('fave')"><span>{_bookmarks_tab}</span></label>
                                         <label n:if="sizeof(\OPENVK_ROOT_CONF['openvk']['preferences']['menu']['links']) > 0" class="checkbox"><input type="checkbox" name="menu_ligiloj" n:attr="checked => $user->getLeftMenuItemStatus('links')"><span>{_additional_links}</span></label>
                                         <label n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['enable']" class="checkbox"><input type="checkbox" name="menu_standardo" n:attr="checked => $user->getLeftMenuItemStatus('poster')"><span>{_ad_poster}</span></label>

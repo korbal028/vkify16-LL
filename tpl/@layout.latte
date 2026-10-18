@@ -282,8 +282,12 @@
                                 <span>{_mobile_settings}</span>
                             </a>
                             
-                            {if $thisUser->getLeftMenuItemStatus('docs') || $thisUser->getLeftMenuItemStatus('fave')}
+                            {if $thisUser->getLeftMenuItemStatus('docs') || $thisUser->getLeftMenuItemStatus('fave') || $thisUser->getLeftMenuItemStatus('stickers')}
                                 <div class="menu_divider"></div>
+                                <a n:if="$thisUser->getLeftMenuItemStatus('stickers')" href="/stickers" class="link my_stickers">
+                                    <div class="link_icon"></div>
+                                    <span>{_stickers_store}</span>
+                                </a>
                                 <a n:if="$thisUser->getLeftMenuItemStatus('docs')" href="/docs" class="link my_docs">
                                     <div class="link_icon"></div>
                                     <span>{_my_documents}</span>
