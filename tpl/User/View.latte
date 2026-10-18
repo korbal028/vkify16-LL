@@ -436,7 +436,16 @@
 
 				<div n:if="isset($thisUser) && !$thisUser->prefersNotToSeeRating()" n:ifcontent class="page_block module completeness_block">
 					{var $completeness = $user->getProfileCompletenessReport()}
-					
+
+					{* рейтинг, как в классических темах: число и полоса, на 100% и выше — золотая *}
+					<div n:class="profile_rating, $completeness->total >= 100 ? profile_rating_gold">
+						<div class="profile_rating_head">
+							<span>{_ui_settings_rating}</span>
+							<b>{$completeness->total}%</b>
+						</div>
+						<div class="profile_rating_bar"><div style="width: {$completeness->percent}%"></div></div>
+					</div>
+
 					{if isset($thisUser) && $user->getId() === $thisUser->getId() && sizeof($completeness->unfilled) > 0}
 						<div class="profile_warning_row" data-warning="interests" style="display: none;" n:if="in_array('interests', $completeness->unfilled)">
 							<div class="profile_warning_hide_wrap" onclick="Profile.hideWarning('interests', event)"><div class="profile_warning_hide"></div></div>

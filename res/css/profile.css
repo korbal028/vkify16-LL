@@ -603,6 +603,55 @@ div.avatar_block:hover .avatar_variants {
   height: unset !important;
 }
 
+/* рейтинг под аватаркой */
+.profile_rating {
+  padding: 12px 15px 14px;
+}
+
+.profile_rating + .profile_warning_row {
+  border-top: 1px solid var(--border-color);
+}
+
+.profile_rating_head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: var(--muted-text-color);
+  font-size: 12.5px;
+}
+
+.profile_rating_head b {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.profile_rating_bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--module-background-color--secondary);
+}
+
+.profile_rating_bar > div {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-color-3);
+}
+
+/* выше 100% движок считает полосу уже до следующего порядка, поэтому вся дорожка золотая, как в классических темах */
+.profile_rating_gold .profile_rating_bar {
+  background: rgba(227, 179, 65, .3);
+}
+
+.profile_rating_gold .profile_rating_bar > div {
+  background: #e3b341;
+}
+
+.profile_rating_btn {
+  margin-top: 8px;
+}
+
 .profile_warning_row {
   color: var(--black);
 }

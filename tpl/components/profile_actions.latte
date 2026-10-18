@@ -65,6 +65,7 @@
 		{/if}
 		{if $user->getId() == $thisUser->getId()}
 			<a class="button button_blue button_wide" href="/edit" class="link">{_edit_page}</a>
+			<a n:if="\OPENVK_ROOT_CONF['openvk']['preferences']['commerce'] && !$thisUser->prefersNotToSeeRating()" class="button button_gray button_wide profile_rating_btn" onclick="showIncreaseRatingDialog({$thisUser->getCoins()}, {ltrim($thisUser->getUrl(), '/')}, {$csrfToken})">{_increase_rating}</a>
 		{/if}
 	{else}
 		<div class="guest_actions">
